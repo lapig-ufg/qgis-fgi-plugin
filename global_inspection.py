@@ -39,6 +39,7 @@ import json
 import os
 import requests as req
 
+
 class GlobalInspectionTiles:
     """QGIS Plugin Implementation."""
 
@@ -79,7 +80,7 @@ class GlobalInspectionTiles:
         if 'send2google_earth' in plugins:
             self.pluginSend2Google = plugins['send2google_earth']
 
-        #print "** INITIALIZING GlobalInspectionTiles"
+        # print "** INITIALIZING GlobalInspectionTiles"
 
         self.pluginIsActive = False
         self.dockwidget = None
@@ -110,18 +111,17 @@ class GlobalInspectionTiles:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('GlobalInspectionTiles', message)
 
-
     def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+            self,
+            icon_path,
+            text,
+            callback,
+            enabled_flag=True,
+            add_to_menu=True,
+            add_to_toolbar=True,
+            status_tip=None,
+            whats_this=None,
+            parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -184,7 +184,6 @@ class GlobalInspectionTiles:
 
         return action
 
-
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -195,17 +194,17 @@ class GlobalInspectionTiles:
             callback=self.run,
             parent=self.iface.mainWindow())
 
-    #--------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
-        #print "** CLOSING GlobalInspectionTiles"
+        # print "** CLOSING GlobalInspectionTiles"
         QgsProject.instance().clear()
         self.dockwidget.fieldFileName.setText("")
         self.dockwidget.fieldWorkingDirectory.setText("")
         self.dockwidget.imageDate.setText("")
-      
+
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
 
@@ -215,14 +214,12 @@ class GlobalInspectionTiles:
         # when closing the docked window:
         self.dockwidget = None
 
-
         self.pluginIsActive = False
-
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
-        #print "** UNLOAD GlobalInspectionTiles"
+        # print "** UNLOAD GlobalInspectionTiles"
 
         for action in self.actions:
             self.iface.removePluginMenu(
@@ -232,20 +229,20 @@ class GlobalInspectionTiles:
         # remove the toolbar
         del self.toolbar
 
-    #--------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     def openGoogleSatellite(self):
 
         url = 'https://mt1.google.com/vt/lyrs=s&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D'
         service_url = url.replace("=", "%3D").replace("&", "%26")
-        qgis_tms_uri = 'type=xyz&zmin={0}&zmax={1}&url={2}'.format(0,19,service_url)
+        qgis_tms_uri = 'type=xyz&zmin={0}&zmax={1}&url={2}'.format(0, 19, service_url)
 
         layer = QgsRasterLayer(qgis_tms_uri, "Google Satellite", 'wms')
 
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
         else:
-            print ("Layer failed to load!")
-        
+            print("Layer failed to load!")
+
     def getConfig(self, key):
         """Load config file and get value of key"""
         data = None
@@ -254,7 +251,7 @@ class GlobalInspectionTiles:
             data = ob[key]
             json_file.close()
         return data
-        
+
     def setConfig(self, key, value):
         """Write config in config file"""
         ob = None
@@ -274,12 +271,13 @@ class GlobalInspectionTiles:
         campaigns = resp.json()
         for campaign in campaigns:
             self.dockwidget.cbTypeInspection.addItem(campaign['title'], campaign)
-    
+
     def configTiles(self):
+        print(self.tiles[self.currentTileIndex][0])
         self.dockwidget.tileInfo.setText(f"Tile {self.tiles[self.currentTileIndex][0]} of {len(self.tiles)}")
-        if(self.typeInspection['classes'][0]['type'] == 'pasture'):
+        if (self.typeInspection['classes'][0]['type'] == 'pasture'):
             self.inspectionController.createGridPixels(self.tiles[self.currentTileIndex])
-        else: 
+        else:
             self.inspectionController.createPointsLayer(self.tiles[self.currentTileIndex])
 
     def loadTiles(self):
@@ -287,29 +285,30 @@ class GlobalInspectionTiles:
         instance = QgsProject.instance()
         openLayers = [layer for layer in instance.mapLayers().values()]
         for layer in openLayers:
-            if (layer.name() == 'tiles'):           
-                self.tiles =[f.attributes() for f in layer.getFeatures()]
+            if (layer.name() == 'tiles'):
+                self.tiles = [f.attributes() for f in layer.getFeatures()]
 
     def openTilesFile(self, fromConfig=False):
         """Open Tiles file Dialog"""
-        if(fromConfig): 
+        if (fromConfig):
             layerPath = self.getConfig('filePath')
             self.dockwidget.tabWidget.setCurrentIndex(1)
             self.currentTileIndex = self.getConfig('currentTileIndex')
             self.inspectionController.initInspectionTile()
             # print(self.currentTileIndex)
             self.configTiles()
-        else: 
+        else:
             layerPath = str(
                 QFileDialog.getOpenFileName(
                     caption='Escolha o arquivo com os tiles',
                     filter='Geopackage (*gpkg)'
                 )[0]
             )
-          
+
         if (layerPath != ""):
-            self.tilesLayer = QgsVectorLayer(layerPath, 'tiles','ogr')
-            symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'red','width_border':'0.5', 'stroke_style':'dashed_line'})
+            self.tilesLayer = QgsVectorLayer(layerPath, 'tiles', 'ogr')
+            symbol = QgsFillSymbol.createSimple(
+                {'color': '0,0,0,0', 'color_border': 'red', 'width_border': '0.5', 'stroke_style': 'dashed_line'})
             self.tilesLayer.renderer().setSymbol(symbol)
             self.dockwidget.fieldFileName.setText(layerPath)
             QgsProject.instance().addMapLayer(self.tilesLayer)
@@ -317,11 +316,11 @@ class GlobalInspectionTiles:
             self.iface.zoomToActiveLayer();
             self.loadTiles()
             self.setConfig(key='filePath', value=layerPath)
-            
+
     def getDirPath(self, fromConfig=False):
-        if(fromConfig):
+        if (fromConfig):
             dir = self.getConfig('workingDirectory')
-        else: 
+        else:
             dir = QFileDialog.getExistingDirectory(
                 self.dockwidget,
                 "Select Directory",
@@ -334,14 +333,14 @@ class GlobalInspectionTiles:
         self.setConfig(key='workingDirectory', value=dir)
 
     def onChangeBTypeInspection(self, index):
-        if(index >= 0):
+        if (index >= 0):
             self.typeInspection = self.dockwidget.cbTypeInspection.itemData(index)
             self.setConfig(key='currentInspectionType', value=index)
             self.inspectionController.initInspectionTile()
 
     def initInspections(self):
         self.configTiles()
-        self.dockwidget.tabWidget.setTabEnabled(1,True)
+        self.dockwidget.tabWidget.setTabEnabled(1, True)
         self.dockwidget.tabWidget.setCurrentIndex(1)
         self.dockwidget.btnInitInspections.setVisible(False)
         self.setTileInfoVisible(visible=True)
@@ -355,7 +354,7 @@ class GlobalInspectionTiles:
     def run(self):
         """Run method that loads and starts the plugin"""
         if not self.pluginIsActive:
-            #print "** STARTING GlobalInspectionTiles"
+            # print "** STARTING GlobalInspectionTiles"
 
             # dockwidget may not exist if:
             #    first run of plugin
@@ -370,30 +369,30 @@ class GlobalInspectionTiles:
             self.pluginIsActive = True
             self.canvas = self.iface.mapCanvas()
             QgsProject.instance().clear()
-           
+
             # QgsProject.instance().clear()
             # Check if config file exists, if not create
             if not os.path.exists(self.workDir + 'config.json'):
                 with open(self.workDir + 'config.json', 'w') as file:
-                     config ={"currentInspectionType": 0, "currentTileIndex": 0, "filePath": "", "workingDirectory": ""}
-                     json.dump(config, file, sort_keys=True)
-                     file.close()  
+                    config = {"currentInspectionType": 0, "currentTileIndex": 0, "filePath": "", "workingDirectory": ""}
+                    json.dump(config, file, sort_keys=True)
+                    file.close()
 
             self.setTileInfoVisible(visible=False)
             self.dockwidget.btnInitInspections.setVisible(False)
-            self.dockwidget.tabWidget.setTabEnabled(1,False)
+            self.dockwidget.tabWidget.setTabEnabled(1, False)
 
             self.loadTypeInspections()
-           
+
             self.openGoogleSatellite()
-            
+
             currentInspectionType = self.getConfig('currentInspectionType')
             self.typeInspection = self.dockwidget.cbTypeInspection.itemData(currentInspectionType)
-            self.dockwidget.cbTypeInspection.setCurrentIndex(currentInspectionType)  
+            self.dockwidget.cbTypeInspection.setCurrentIndex(currentInspectionType)
 
             file = self.getConfig('filePath')
 
-            if(file != ""):
+            if (file != ""):
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Warning)
                 msg.setText("Do you want to start a new inspection?")
@@ -401,7 +400,7 @@ class GlobalInspectionTiles:
                 msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
                 retval = msg.exec_()
                 # 65536 -> No | 16384 -> Yes
-                if(retval == 16384):
+                if (retval == 16384):
                     self.dockwidget.cbTypeInspection.setEnabled(True)
                     self.dockwidget.btnFile.setEnabled(True)
                     self.dockwidget.btnWorkingDirectory.setEnabled(True)
@@ -409,21 +408,20 @@ class GlobalInspectionTiles:
                 else:
                     self.openTilesFile(fromConfig=True)
                     self.getDirPath(fromConfig=True)
-                    self.dockwidget.tabWidget.setTabEnabled(1,True)
+                    self.dockwidget.tabWidget.setTabEnabled(1, True)
                     self.dockwidget.cbTypeInspection.setEnabled(False)
                     self.dockwidget.btnFile.setEnabled(False)
                     self.dockwidget.btnWorkingDirectory.setEnabled(False)
                     self.dockwidget.btnInitInspections.setVisible(False)
                     self.setTileInfoVisible(visible=True)
-              
-               
+
             self.dockwidget.btnFile.clicked.connect(self.openTilesFile)
             self.dockwidget.btnWorkingDirectory.clicked.connect(self.getDirPath)
             self.dockwidget.cbTypeInspection.currentIndexChanged.connect(self.onChangeBTypeInspection)
             self.dockwidget.btnInitInspections.clicked.connect(self.initInspections)
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
-            
+
             # show the dockwidget
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
