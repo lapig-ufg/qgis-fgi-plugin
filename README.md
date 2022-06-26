@@ -6,10 +6,10 @@ Congratulations! You just built a plugin for QGIS!<br/><br />
 
 <div id='help' style='font-size:.9em;'>
 Your plugin <b>GlobalInspectionTiles</b> was created in:<br>
-&nbsp;&nbsp;<b>/home/tharles/projects_global_pasture/global_inspection</b>
+&nbsp;&nbsp;<b><path-dir>/global_inspection</b>
 <p>
 Your QGIS plugin directory is located at:<br>
-&nbsp;&nbsp;<b>/home/tharles/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins</b>
+&nbsp;&nbsp;<b><path-dir>/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins</b>
 <p>
 <h3>What's Next</h3>
 <ol>

@@ -1,25 +1,21 @@
+import datetime
 from PyQt5.QtWidgets import QPushButton, QProgressBar
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtGui import QColor
-from qgis.gui import QgsMapToolEmitPoint
-from qgis.core import QgsProject, QgsVectorLayer, QgsSymbol, QgsRuleBasedRenderer, QgsFillSymbol, QgsProcessingFeedback, QgsRectangle, QgsField, QgsFeatureRequest, QgsGeometry, QgsPointXY
+from qgis.core import QgsProject, QgsVectorLayer, QgsSymbol, QgsRuleBasedRenderer, QgsFillSymbol, QgsProcessingFeedback, QgsRectangle, QgsField, QgsFeatureRequest
 from qgis import processing
-import datetime
-
-class PointTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas):
-        QgsMapToolEmitPoint.__init__(self, canvas)
-
-def canvasReleaseEvent(self, mouseEvent):
-    qgsPoint = self.toMapCoordinates(mouseEvent.pos())
-    print('x:', qgsPoint.x(), ', y:', qgsPoint.y())
-
+from .point import ToolPointer
+from .export import Writer
 class InspectionController:
     """QGIS Plugin Implementation."""
 
     def __init__(self, parent):
         self.parent = parent
         self.selectedClassObject = None
+        self.livestockLayer = None
+        self.parent.dockwidget.btnNext.clicked.connect(self.nextTile)
+        self.parent.dockwidget.btnBack.clicked.connect(self.nextTile)
+        
     
     def setFeatureColor(self):
         # symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'#404040','width_border':'0.1'})
@@ -27,8 +23,7 @@ class InspectionController:
         renderer = QgsRuleBasedRenderer(symbol)
         
         rules = []
-        # rules = [['53790', """"Color" LIKE '53790'""", QColor(30, 210, 0)],
-        #         ['Other', """"Color" NOT LIKE '53790'""", QColor(230, 155, 240)]]
+
         for type in self.parent.typeInspection['classes']:
             rgb = type['rgb'].split(",")
             rules.append([type['class'], f""""class" = '{type['class']}'""", QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3]))])
@@ -66,7 +61,6 @@ class InspectionController:
                 feature = feat
         return feature
 
-
     def addClassToFeature(self, selectedFeatures):
         request = QgsFeatureRequest()
         request.setFilterFids(selectedFeatures)
@@ -87,28 +81,22 @@ class InspectionController:
         self.parent.currentPixelsLayer.commitChanges()
         self.setFeatureColor()
 
-    def addCattlePoint(self, point, mouse_button):
-        geo_pt = QgsGeometry.fromPointXY(QgsPointXY(point.x(), point.y()))
-        print(geo_pt)
-
     def createPointsLayer(self, tile):
-        canvas = self.parent.iface.mapCanvas() 
-        pointTool = QgsMapToolEmitPoint(canvas)
-        pointTool.canvasClicked.connect(self.addCattlePoint)
-        
-        canvas.setMapTool(pointTool)
-        vl = QgsVectorLayer("Point", f"{tile[0]}_livestock", "memory")
-        pr = vl.dataProvider()
+        uri = "point?crs=epsg:3857"
+        self.livestockLayer = QgsVectorLayer(uri, f"{tile[0]}_livestock", "memory")
+        pr = self.livestockLayer.dataProvider()
         # Enter editing mode
-        vl.startEditing()
-
-        # add fields
+        self.livestockLayer.startEditing()
         pr.addAttributes( [ QgsField("class", QVariant.String), QgsField("image_date",  QVariant.String) ] )
-        vl.commitChanges()
+        self.livestockLayer.commitChanges()
         zoomRectangle = QgsRectangle(tile[2], tile[3], tile[4], tile[5])
-        QgsProject().instance().addMapLayer(vl)
+        # Taken clicked point and add as cattle in the layer 
+        canvas = self.parent.iface.mapCanvas()
+        tool = ToolPointer(self.parent.iface, self.livestockLayer, self)
+        canvas.setMapTool(tool)
+
+        QgsProject().instance().addMapLayer(self.livestockLayer)
         self.parent.canvas.setExtent(zoomRectangle)
-       
     
     def setDefaultClass(self, layer):
         imageDate = self.parent.dockwidget.imageDate.text() 
@@ -180,7 +168,6 @@ class InspectionController:
         grid.selectionChanged.connect(self.addClassToFeature)
         self.setFeatureColor()
 
-
     def clearButtons(self, layout):
         for i in reversed(range(layout.count())): 
             layout.itemAt(i).widget().setParent(None)
@@ -206,3 +193,33 @@ class InspectionController:
             button.setStyleSheet(f"background-color: {type['color']}")
             button.clicked.connect(lambda checked, value = type : self.onClickClass(value))
             self.parent.dockwidget.layoutClasses.addWidget(button)
+
+    def nextTile(self):
+        layer = None
+      
+        if( self.selectedClassObject['type'] == 'livestock'): 
+            layer = self.livestockLayer
+        else: 
+            layer = self.parent.currentPixelsLayer
+        
+        result =  Writer(self, layer).gpkg()
+
+        if(result):
+            self.parent.currentTileIndex = self.parent.currentTileIndex + 1
+            self.parent.setConfig(key='currentTileIndex', value=self.parent.currentTileIndex)
+            QgsProject.instance().removeMapLayers( [layer.id()] )
+            self.parent.configTiles()
+
+    def backtTile(self):
+        layer = None
+      
+        if( self.selectedClassObject['type'] == 'livestock'): 
+            layer = self.livestockLayer
+        else: 
+            layer = self.parent.currentPixelsLayer
+
+        if( self.parent.currentTileIndex >= 0 ):
+            self.parent.currentTileIndex = self.parent.currentTileIndex - 1
+            self.parent.setConfig(key='currentTileIndex', value=self.parent.currentTileIndex)
+            QgsProject.instance().removeMapLayers( [layer.id()] )
+

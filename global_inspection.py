@@ -273,7 +273,6 @@ class GlobalInspectionTiles:
             self.dockwidget.cbTypeInspection.addItem(campaign['title'], campaign)
 
     def configTiles(self):
-        print(self.tiles[self.currentTileIndex][0])
         self.dockwidget.tileInfo.setText(f"Tile {self.tiles[self.currentTileIndex][0]} of {len(self.tiles)}")
         if (self.typeInspection['classes'][0]['type'] == 'pasture'):
             self.inspectionController.createGridPixels(self.tiles[self.currentTileIndex])
@@ -290,13 +289,12 @@ class GlobalInspectionTiles:
 
     def openTilesFile(self, fromConfig=False):
         """Open Tiles file Dialog"""
+       
         if (fromConfig):
             layerPath = self.getConfig('filePath')
             self.dockwidget.tabWidget.setCurrentIndex(1)
             self.currentTileIndex = self.getConfig('currentTileIndex')
             self.inspectionController.initInspectionTile()
-            # print(self.currentTileIndex)
-            self.configTiles()
         else:
             layerPath = str(
                 QFileDialog.getOpenFileName(
@@ -304,7 +302,6 @@ class GlobalInspectionTiles:
                     filter='Geopackage (*gpkg)'
                 )[0]
             )
-
         if (layerPath != ""):
             self.tilesLayer = QgsVectorLayer(layerPath, 'tiles', 'ogr')
             symbol = QgsFillSymbol.createSimple(
@@ -316,6 +313,10 @@ class GlobalInspectionTiles:
             self.iface.zoomToActiveLayer();
             self.loadTiles()
             self.setConfig(key='filePath', value=layerPath)
+            
+            if(fromConfig):
+                 self.configTiles()
+
 
     def getDirPath(self, fromConfig=False):
         if (fromConfig):
@@ -405,6 +406,10 @@ class GlobalInspectionTiles:
                     self.dockwidget.btnFile.setEnabled(True)
                     self.dockwidget.btnWorkingDirectory.setEnabled(True)
                     self.dockwidget.tabWidget.setCurrentIndex(0)
+                    self.setConfig(key='currentInspectionType', value=0)
+                    self.setConfig(key='currentTileIndex', value=0)
+                    self.setConfig(key='filePath', value="")
+                    self.setConfig(key='workingDirectory', value="")
                 else:
                     self.openTilesFile(fromConfig=True)
                     self.getDirPath(fromConfig=True)
