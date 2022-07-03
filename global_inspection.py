@@ -23,7 +23,7 @@
 """
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QVariant
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon, QPixmap
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFillSymbol, QgsField
 from qgis.utils import plugins
@@ -77,9 +77,6 @@ class GlobalInspectionTiles:
         self.toolbar = self.iface.addToolBar(u'GlobalInspectionTiles')
         self.toolbar.setObjectName(u'GlobalInspectionTiles')
         self.pluginSend2Google = None
-
-        if 'send2google_earth' in plugins:
-            self.pluginSend2Google = plugins['send2google_earth']
 
         # print "** INITIALIZING GlobalInspectionTiles"
         self.pluginIsActive = False
@@ -277,17 +274,20 @@ class GlobalInspectionTiles:
 
     def configTiles(self):
         tile = self.tiles[self.currentTileIndex]
-        self.dockwidget.tileInfo.setText(f"Tile {tile[0]} of {len(self.tiles)}")        
-        filename = path.normpath(f"{self.dockwidget.fieldWorkingDirectory.text()}/{tile[0]}_{self.typeInspection['_id']}.gpkg") 
-       
-        if path.exists(filename):
-            self.inspectionController.loadTileFromFile(tile)
-        else:
-            if (self.typeInspection['classes'][0]['type'] == 'polygon'):
-                self.inspectionController.createGridPixels(tile)
-            else:
-                self.inspectionController.createPointsLayer(tile)
+        self.dockwidget.tileInfo.setText(f"Tile {self.currentTileIndex + 1} of {len(self.tiles)}")        
+        # filename = path.normpath(f"{self.dockwidget.fieldWorkingDirectory.text()}/{tile[0]}_{self.typeInspection['_id']}.gpkg") 
 
+
+        if (self.typeInspection['classes'][0]['type'] == 'polygon'):
+                self.inspectionController.createGridPixels(tile)
+        else:
+            self.dockwidget.btnClearSelection.setVisible(False)
+            self.inspectionController.createPointsLayer(tile)
+
+        # if path.exists(filename):
+        #     self.inspectionController.loadTileFromFile(tile)
+        # else:
+            
     def loadTiles(self):
         """Load tiles from layer"""
         instance = QgsProject.instance()
@@ -400,6 +400,7 @@ class GlobalInspectionTiles:
             
             self.dockwidget.btnPointDate.setIcon(QIcon(os.path.dirname(__file__) + "/img/copy-point.png"))
             self.dockwidget.btnClearSelection.setIcon(QIcon(os.path.dirname(__file__) + "/img/delete.png"))
+            self.dockwidget.logo.setPixmap(QPixmap(os.path.dirname(__file__) + "/img/logo-plugin.png"))
             # self.dockwidget.btnBack.setIcon(QIcon(os.path.dirname(__file__) + "/img/back.png"))
             self.dockwidget.btnNext.setIcon(QIcon(os.path.dirname(__file__) + "/img/save.png"))
             self.dockwidget.btnBack.setEnabled(False)
@@ -441,7 +442,7 @@ class GlobalInspectionTiles:
 
             if (file != ""):
                 msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
+                msg.setIcon(QMessageBox.Question)
                 msg.setText("Do you want to start a new inspection?")
                 msg.setWindowTitle("INSPECTION TILES")
                 msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)

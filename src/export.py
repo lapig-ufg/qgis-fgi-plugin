@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QMessageBox)
 # from qgis import processing
-from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
+from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsCoordinateTransformContext, QgsFields
 from os import path
 class Writer:
     def __init__(self, controller, layer):
@@ -35,4 +35,22 @@ class Writer:
                 "Failed to export: " + self.layer.name())
             writer = None
             return False
+
+    def createGpkgLayer(gpkg_path: str, layerNname: str, geometry: int, crs: str, schema: QgsFields, append: bool = False):
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "GPKG"
+        options.layerName = layerNname
+        if append:
+            options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+
+        writer = QgsVectorFileWriter.create(
+            gpkg_path,
+            schema,
+            geometry,
+            QgsCoordinateReferenceSystem(crs),
+            QgsCoordinateTransformContext(),
+            options)
+        del writer
+
+        return True
  
