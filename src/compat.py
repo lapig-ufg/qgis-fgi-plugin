@@ -88,3 +88,4 @@ def pointToWGS84(point):
     transformer = QgsCoordinateTransform(f,t)
     pt = transformer.transform(point)
     return pt
+

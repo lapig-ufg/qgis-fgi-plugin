@@ -12,6 +12,7 @@ from qgis.core import Qgis, QgsWkbTypes, QgsFields, QgsProject, QgsVectorLayer, 
 from qgis import processing
 from .tools import ToolPointer, ClipboardPointer
 from .export import Writer
+import unicodedata
 class InspectionController:
     """QGIS Plugin Implementation."""
 
@@ -19,6 +20,7 @@ class InspectionController:
         self.parent = parent
         self.selectedClassObject = None
         self.livestockLayer = None
+        self.inspectionStartDatetime = None
         self.parent.dockwidget.btnNext.clicked.connect(self.nextTile)
         # self.parent.dockwidget.btnBack.clicked.connect(self.backtTile)
         self.parent.dockwidget.btnPointDate.clicked.connect(self.getPoint)
@@ -51,7 +53,14 @@ class InspectionController:
         tool = ClipboardPointer(self.parent.iface, self)
         canvas.setMapTool(tool)
        
-            
+    def normalize(self, text):
+        text = (
+            unicodedata.normalize('NFD', text)
+            .encode('ascii', 'ignore')
+            .decode('utf-8')
+        )
+        return str(text).lower().replace(" ", "_")
+
     def setFeatureColor(self):
         # symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'#404040','width_border':'0.1'})
         symbol = QgsSymbol.defaultSymbol(self.parent.currentPixelsLayer.geometryType())
@@ -96,15 +105,30 @@ class InspectionController:
                 feature = feat
         return feature
 
+    def removePoints(self, selectedFeatures):
+        request = QgsFeatureRequest()
+        request.setFilterFids(selectedFeatures)
+        allFeatures = list(self.livestockLayer.getFeatures(request));
+    
+        self.livestockLayer.startEditing()
+      
+        for feature in allFeatures:
+            self.livestockLayer.deleteFeature(feature.id())
+         
+        self.livestockLayer.commitChanges()
+        canvas = self.parent.iface.mapCanvas()
+        tool = ToolPointer(self.parent.iface, self.livestockLayer, self)
+        canvas.setMapTool(tool)
+
     def addClassToFeature(self, selectedFeatures):
         request = QgsFeatureRequest()
         request.setFilterFids(selectedFeatures)
         rgb = self.selectedClassObject['rgb'].split(",")
         self.parent.iface.mapCanvas().setSelectionColor( QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), 135) )
 
-        if(self.parent.currentPixelsLayer):
+        if(self.parent.currentPixelsLayer and self.parent.geometryType == 'polygon'):
         
-            allFeatures = self.parent.currentPixelsLayer.getFeatures(request);
+            allFeatures = list(self.parent.currentPixelsLayer.getFeatures(request));
             class_idx = self.parent.currentPixelsLayer.fields().indexOf('class')
             date_idx = self.parent.currentPixelsLayer.fields().indexOf('image_date')
             imageDate = self.parent.dockwidget.imageDate.text()
@@ -118,18 +142,16 @@ class InspectionController:
             
             if not self.parent.selectedClass:
                 imageDate = None  
-       
-            allFeatures = list(allFeatures)
-            i = 0
-            while i < len(allFeatures):
-                self.parent.currentPixelsLayer.changeAttributeValue(allFeatures[i].id(), class_idx, self.parent.selectedClass)
-                self.parent.currentPixelsLayer.changeAttributeValue(allFeatures[i].id(), date_idx, imageDate)
-                i += 1
+
+            for feature in allFeatures:
+                self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), class_idx, self.parent.selectedClass)
+                self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), date_idx, imageDate)
 
             self.parent.currentPixelsLayer.commitChanges()
             self.setFeatureColor()
         else:
-           self.parent.iface.messageBar().pushMessage("", "Something went wrong with the pixels layer, Please close the plugin and try again", level=Qgis.Critical, duration=10)  
+           self.parent.iface.messageBar().pushMessage("", "Something went wrong with the pixels layer, Please close the plugin and try again", level=Qgis.Critical, duration=10)
+                  
 
     def createPointsLayer(self, tile):
         self.livestockLayer = None
@@ -137,38 +159,59 @@ class InspectionController:
         tilesFeatures = None
         geom = None
         request = None
+        self.inspectionStartDatetime = datetime.datetime.now()
+        name = self.parent.getConfig('interpreterName')
 
-        pointOutput = path.normpath(f"{self.parent.workDir}/points.gpkg")
+        if name is "":
+            name = self.parent.dockwidget.interpreterName.text()
+        
+        self.interpreterName = self.normalize(name)
 
-        try:
-            if (path.exists(pointOutput)):
-                remove(path.normpath(f"{self.parent.workDir}/points.gpkg"))
+        # pointOutput = path.normpath(f"{self.parent.workDir}/points.gpkg")
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/points.gpkg-shm"))):
-                remove(path.normpath(f"{self.parent.workDir}/points.gpkg-shm"))
+        # try:
+        #     if (path.exists(pointOutput)):
+        #         remove(path.normpath(f"{self.parent.workDir}/points.gpkg"))
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/points.gpkg-wal"))):
-                remove(path.normpath(f"{self.parent.workDir}/points.gpkg-wal"))
-        except Exception:
-            pass
+        #     if (path.exists(path.normpath(f"{self.parent.workDir}/points.gpkg-shm"))):
+        #         remove(path.normpath(f"{self.parent.workDir}/points.gpkg-shm"))
+
+        #     if (path.exists(path.normpath(f"{self.parent.workDir}/points.gpkg-wal"))):
+        #         remove(path.normpath(f"{self.parent.workDir}/points.gpkg-wal"))
+        # except Exception:
+        #     pass
 
         # Create a layer
-        gpkg_path = pointOutput
-        layerName = f"{tile[0]}_{self.parent.typeInspection['_id']}"
-        geom = QgsWkbTypes.Point
-        crs = 'epsg:3857'
-        schema = QgsFields()
-        schema.append(QgsField("class", QVariant.String))
-        schema.append(QgsField("image_date",  QVariant.String))
+        # gpkg_path = pointOutput
+        # layerName = f"{tile[0]}_{self.parent.typeInspection['_id']}"
+        # geom = QgsWkbTypes.Point
+        # crs = 'epsg:3857'
+        # schema = QgsFields()
+        # schema.append(QgsField("class", QVariant.String))
+        # schema.append(QgsField("image_date",  QVariant.String))
 
-        Writer.createGpkgLayer(gpkg_path, layerName, geom, crs, schema, append=True)
+        # Writer.createGpkgLayer(gpkg_path, layerName, geom, crs, schema)
+        uri = "point?crs=epsg:3857"
+       
+        self.livestockLayer = QgsVectorLayer(uri, f"{tile[0]}_{self.parent.typeInspection['_id']}_{self.interpreterName}", "memory")
+        dataProvider = self.livestockLayer.dataProvider()
+        # Enter editing mode
+        self.livestockLayer.startEditing()
 
-        self.livestockLayer = QgsVectorLayer(pointOutput, f"{tile[0]}_{self.parent.typeInspection['_id']}", "ogr")        
+        # add fields
+        dataProvider.addAttributes( [ QgsField("class", QVariant.String), QgsField("image_date",  QVariant.String) ] )
+
+        # allFeatures = grid.getFeatures();
+        # field_idx = grid.fields().indexOf('class')
+        # for feature in allFeatures:
+        #     grid.changeAttributeValue(feature.id(), field_idx, self.parent.selectedClass)
+
+        self.livestockLayer.commitChanges()        
         request = QgsFeatureRequest().setFilterFids([tile[0]])
         tilesFeatures = list(self.parent.tilesLayer.getFeatures(request))
         geom = tilesFeatures[0].geometry()
         zoomRectangle = QgsRectangle(geom.boundingBox())
-        
+        self.livestockLayer.selectionChanged.connect(self.removePoints)
         QgsProject().instance().addMapLayer(self.livestockLayer)
         self.parent.canvas.setExtent(zoomRectangle)
     
@@ -190,20 +233,28 @@ class InspectionController:
         grid = None
         out = None
         self.parent.currentPixelsLayer = None
+        self.inspectionStartDatetime = datetime.datetime.now()
+        name = self.parent.getConfig('interpreterName')
 
-        gridOutput = path.normpath(f"{self.parent.workDir}/grid.gpkg")
+        if name is "":
+            name = self.parent.dockwidget.interpreterName.text()
         
+        self.interpreterName = self.normalize(name)
+        
+        gridOutput = path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg")
+        prevTile = self.parent.tiles[self.parent.currentTileIndex - 1] 
+
         try:
-            if (path.exists(gridOutput)):
-                remove(path.normpath(f"{self.parent.workDir}/grid.gpkg"))
+            if (path.exists(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg"))):
+                remove(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg"))
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/grid.gpkg-shm"))):
-                remove(path.normpath(f"{self.parent.workDir}/grid.gpkg-shm"))
+            if (path.exists(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg-shm"))):
+                remove(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg-shm"))
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/grid.gpkg-wal"))):
-                remove(path.normpath(f"{self.parent.workDir}/grid.gpkg-wal"))
+            if (path.exists(path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg-wal"))):
+                 remove(path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg-wal"))
         except Exception:
-            pass
+             pass
 
         request = QgsFeatureRequest().setFilterFids([tile[0]])
         tilesFeatures = list(self.parent.tilesLayer.getFeatures(request))
@@ -224,7 +275,7 @@ class InspectionController:
         out = processing.run('native:creategrid', params)
         # self.parent.iface.messageBar().clearWidgets()
        
-        grid = QgsVectorLayer(out['OUTPUT'], f"{tile[0]}_{self.parent.typeInspection['_id']}", 'ogr')
+        grid = QgsVectorLayer(out['OUTPUT'], f"{tile[0]}_{self.parent.typeInspection['_id']}_{self.interpreterName}", 'ogr')
         symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'#404040','width_border':'0.1'})
         grid.renderer().setSymbol(symbol)
         dataProvider = grid.dataProvider()
@@ -256,13 +307,8 @@ class InspectionController:
    
     def removeSelection(self):
         self.parent.selectedClass = None
-        if( self.selectedClassObject['type'] == 'point'):
-            # Taken clicked point and add as cattle in the layer 
-            canvas = self.parent.iface.mapCanvas()
-            tool = ToolPointer(self.parent.iface, self.livestockLayer, self)
-            canvas.setMapTool(tool)
-        else: 
-            self.parent.iface.actionSelectFreehand().trigger() 
+        self.parent.iface.actionSelectFreehand().trigger() 
+    
 
     def onClickClass(self, item):
         """Write config in config file"""
@@ -303,27 +349,28 @@ class InspectionController:
                 button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
                 button.clicked.connect(lambda checked, value = type : self.onClickClass(value))
                 self.parent.dockwidget.layoutClasses.addWidget(button)
+                
         self.parent.dockwidget.btnClearSelection.setVisible(True)
 
     def clearContainerClasses(self, finished=False):
-        self.parent.dockwidget.labelClass.setVisible(False)
-        self.parent.dockwidget.selectedClass.setVisible(False)
-        self.parent.dockwidget.btnLoadClasses.setVisible(False)
-        self.parent.dockwidget.btnClearSelection.setVisible(False)
-        self.clearButtons(self.parent.dockwidget.layoutClasses)
-        # self.parent.dockwidget.btnBack.setEnabled(False)
-        # self.parent.dockwidget.btnNext.setEnabled(False)
-        self.parent.dockwidget.imageDate.setText("")
-
-        if(finished):
-            self.parent.dockwidget.btnNext.setVisible(False)
-            self.parent.dockwidget.btnPointDate.setVisible(False)
-            self.parent.dockwidget.labelImageDate.setVisible(False)
-            self.parent.dockwidget.imageDate.setVisible(False)
+        if(self.parent.dockwidget):
+            self.parent.dockwidget.selectedClass.setVisible(False)
             self.parent.dockwidget.btnLoadClasses.setVisible(False)
+            self.parent.dockwidget.btnClearSelection.setVisible(False)
+            self.clearButtons(self.parent.dockwidget.layoutClasses)
+            self.parent.dockwidget.imageDate.setText("")
 
-        for i in reversed(range(self.parent.dockwidget.layoutClasses.count())): 
-            self.parent.dockwidget.layoutClasses.itemAt(i).widget().setParent(None)
+            if(finished):
+                    self.parent.dockwidget.btnNext.setVisible(False)
+                    self.parent.dockwidget.btnPointDate.setVisible(False)
+                    self.parent.dockwidget.labelImageDate.setVisible(False)
+                    self.parent.dockwidget.imageDate.setVisible(False)
+                    self.parent.dockwidget.btnLoadClasses.setVisible(False)
+            else:
+                self.parent.dockwidget.labelClass.setVisible(False)
+
+            for i in reversed(range(self.parent.dockwidget.layoutClasses.count())): 
+                self.parent.dockwidget.layoutClasses.itemAt(i).widget().setParent(None)
 
     def layerIsEmpty(self, layer):
         request = QgsFeatureRequest().setFilterExpression(' "class" is NULL AND "image_date" is NULL ')
@@ -363,13 +410,36 @@ class InspectionController:
 
         if(index == tilesLength):
             self.parent.iface.messageBar().pushMessage("", "Inspection FINISHED!", level=Qgis.Info, duration=15)
+            self.parent.dockwidget.tileInfo.setText(f"INSPECTION FINISHED!")
             self.clearContainerClasses(finished=True)
             self.parent.setConfig(key='currentInspectionType', value=0)
             self.parent.setConfig(key='currentTileIndex', value=0)
+            self.parent.currentTileIndex = 0
             time.sleep(2)
-            self.parent.dockwidget.tileInfo.setText(f"INSPECTION FINISHED!")
-            self.parent.onClosePlugin();
+            
             remove(self.parent.workDir + 'config.json')
+            self.parent.onClosePlugin();
+           
+
+    def setTimeInspection(self, layer):
+
+        endTime = datetime.datetime.now()
+
+        layer.startEditing()
+
+        allFeatures = layer.getFeatures();
+        start_time_idx = layer.fields().indexOf('start_time')
+        end_time_idx = layer.fields().indexOf('end_time')
+        inspection_time_idx = layer.fields().indexOf('time_in_seconds')
+
+        for feature in allFeatures:
+
+            layer.changeAttributeValue(feature.id(), start_time_idx, self.inspectionStartDatetime.strftime("%Y-%m-%d %H:%M:%S"))
+            layer.changeAttributeValue(feature.id(), end_time_idx, endTime.strftime("%Y-%m-%d %H:%M:%S"))
+            layer.changeAttributeValue(feature.id(), inspection_time_idx, str((endTime - self.inspectionStartDatetime).total_seconds()))
+
+        layer.commitChanges()
+
 
     def nextTile(self, noImageDate=False):
         layer = None
@@ -421,7 +491,14 @@ class InspectionController:
 
             if( index <= tilesLength):
                 if not noImageDate:
-                    result =  Writer(self, layer).gpkg()
+                    endTime = datetime.datetime.now()
+                    name = self.parent.getConfig('interpreterName')
+
+                    if name is "":
+                        name = self.parent.dockwidget.interpreterName.text()
+                    
+                    metadata = [f'DESCRIPTION=start_time: {self.inspectionStartDatetime.strftime("%Y-%m-%d %H:%M:%S")} | end_time: {endTime.strftime("%Y-%m-%d %H:%M:%S")} | time_in_seconds: {str((endTime - self.inspectionStartDatetime).total_seconds())} | interpreter: {self.normalize(name)}']
+                    result =  Writer(self, layer, metadata).gpkg()
                     if(result and (index < tilesLength)):
                         self.parent.currentTileIndex = index
                         self.parent.setConfig(key='currentTileIndex', value= index)
@@ -429,17 +506,22 @@ class InspectionController:
                         self.parent.configTiles()
                 else:
                     self.noDataInTile(layer, index, tilesLength)
+                    return
 
             self.clearContainerClasses()
 
             if(index == tilesLength):
                 self.parent.iface.messageBar().pushMessage("", "Inspection FINISHED!", level=Qgis.Info, duration=15)
-                self.clearContainerClasses(finished=True)
-                self.parent.setConfig(key='currentInspectionType', value=0)
-                self.parent.setConfig(key='currentTileIndex', value=0)
-                self.parent.dockwidget.tileInfo.setText(f"INSPECTION FINISHED!")
-                self.parent.onClosePlugin();
+
+                if(self.parent.dockwidget):
+                    self.parent.dockwidget.tileInfo.setText(f"INSPECTION FINISHED!")
+                    self.clearContainerClasses(finished=True)
+
+                self.parent.currentTileIndex = 0
+                time.sleep(2)
                 remove(self.parent.workDir + 'config.json')
+                self.parent.onClosePlugin();
+            
                 
                 # button = QPushButton("Send Inpections to Drive", checkable=True)
                 # button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))

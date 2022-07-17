@@ -3,9 +3,10 @@ from PyQt5.QtWidgets import (QMessageBox)
 from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsVectorFileWriter, QgsCoordinateTransformContext, QgsFields
 from os import path
 class Writer:
-    def __init__(self, controller, layer):
+    def __init__(self, controller, layer, metadata):
         self.layer  = layer
         self.controller = controller
+        self.metadata = metadata
         return None
 
     def gpkg(self):
@@ -19,7 +20,8 @@ class Writer:
             options.fileEncoding = "UTF-8"
             options.driverName = "GPKG"
             options.layerName = self.layer.name() 
-
+            options.layerOptions = self.metadata
+          
             writer.writeAsVectorFormatV3(
                 self.layer,
                 filename,
