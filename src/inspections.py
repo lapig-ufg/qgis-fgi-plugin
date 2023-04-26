@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import QPushButton
 from qgis.PyQt.QtCore import QVariant
 from PyQt5 import QtCore
 from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QMessageBox, QApplication
+from qgis.PyQt.QtWidgets import QMessageBox, QApplication, QScrollArea, QListWidgetItem
 from qgis.PyQt.QtGui import QColor, QCursor, QPixmap
 from qgis.core import Qgis, QgsCoordinateTransform, QgsProject, QgsVectorLayer, QgsSymbol, QgsRuleBasedRenderer, QgsFillSymbol, QgsCoordinateReferenceSystem, QgsField, QgsFeatureRequest
 from qgis import processing
@@ -384,7 +384,9 @@ class InspectionController:
 
     def clearButtons(self, layout):
         for i in reversed(range(layout.count())): 
-            layout.itemAt(i).widget().setParent(None)
+            widget = layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
    
     def removeSelection(self):
         self.parent.selectedClass = None
@@ -407,19 +409,14 @@ class InspectionController:
         else:
             self.parent.iface.messageBar().pushMessage("", f"The image date valid is required!", level=Qgis.Critical, duration=5)    
     
-    def initInspectionTile(self, noImageDate=False):
-        """Load all class of type inspection"""
-
-        self.clearButtons(self.getWidgetObject('layoutClasses'))
-
-        if not noImageDate:
-            # self.parent.dockwidget.btnBack.setEnabled(True)
-            self.parent.dockwidget.btnNext.setEnabled(True)
-        else: 
-            self.nextTile(noImageDate)
-            return
-         
-       
+    def clearList(self, listWidget):
+        listWidget.clear()
+        for i in range(listWidget.count()):
+            item = listWidget.takeItem(i)
+            if item: 
+                item.deleteLater()
+            
+    def createClassesButtons(self, noImageDate):
         for _class in self.parent.campaignsConfig['classes']:
             if(_class['selected']):
                 self.onClickClass(_class)
@@ -429,8 +426,29 @@ class InspectionController:
                 button.setStyleSheet(f"background-color: {_class['color']}")
                 button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
                 button.clicked.connect(lambda checked, value = _class : self.onClickClass(value))
-                self.getWidgetObject('layoutClasses').addWidget(button)
-                
+               
+                item = QListWidgetItem()
+                item.setSizeHint(button.sizeHint())
+                self.getWidgetObject('classes').addItem(item)
+                self.getWidgetObject('classes').setItemWidget(item, button)
+
+    def initInspectionTile(self, noImageDate=False):
+        """Load all class of type inspection"""
+
+        # self.clearButtons(self.getWidgetObject('layoutClasses'))
+        list_classes = self.getWidgetObject('classes')
+        list_classes.setVisible(True)
+
+        if list_classes:
+            self.clearList(list_classes)
+
+        if not noImageDate:
+            self.parent.dockwidget.btnNext.setEnabled(True)
+        else: 
+            self.nextTile(noImageDate)
+            return
+         
+        self.createClassesButtons(noImageDate)
                 
         self.getWidgetObject('btnClearSelection').setVisible(True)
 
@@ -441,7 +459,7 @@ class InspectionController:
             self.getWidgetObject('selectedClass').setVisible(False)
             self.parent.dockwidget.btnLoadClasses.setVisible(False)
             self.getWidgetObject('btnClearSelection').setVisible(False)
-            self.clearButtons(self.getWidgetObject('layoutClasses'))
+            self.clearList(self.getWidgetObject('classes'))
             self.parent.dockwidget.importBingClassification.setVisible(False)
             self.parent.dockwidget.imageDate.setDateTime(datetime.datetime.strptime('2000-01-01', '%Y-%m-%d'))
             self.parent.dockwidget.sameImage.setChecked(False)
@@ -455,8 +473,8 @@ class InspectionController:
             else:
                 self.getWidgetObject('labelClass').setVisible(False)
 
-            for i in reversed(range(self.getWidgetObject('layoutClasses').count())): 
-                self.getWidgetObject('layoutClasses').itemAt(i).widget().setParent(None)
+            # for i in reversed(range(self.getWidgetObject('layoutClasses').count())): 
+            #     self.getWidgetObject('layoutClasses').itemAt(i).widget().setParent(None)
 
 
     def layerIsEmpty(self, layer):
@@ -549,6 +567,7 @@ class InspectionController:
         if(layer):
 
             if(not noImageDate):
+                self.parent.dockwidget.btnNext.setVisible(False)
                 if(self.layerIsEmpty(layer)):
                     retvalNoImageDate = self.dialog(
                         title="INSPECTION TILES",
@@ -602,6 +621,7 @@ class InspectionController:
 
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
         self.parent.iface.actionPan().trigger() 
+        self.onChangeTab(1)
 
     def loadTileFromFile(self, tile):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
@@ -645,6 +665,7 @@ class InspectionController:
             self.parent.dockwidget.btnFinishBing.setVisible(True)
             self.parent.dockwidget.tabWidget.setCurrentIndex(1)
             self.parent.dockwidget.tabWidget.setTabEnabled(1, True)
+            
         elif tab == 2:
             self.parent.setConfig(key='imageSource', value='GOOGLE')
             self.parent.iface.mapCanvas().setSelectionColor(QColor(255, 255, 255, 0))
@@ -654,6 +675,6 @@ class InspectionController:
             QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerBing.id()).setItemVisibilityChecked(False)
             self.parent.dockwidget.tabWidget.setCurrentIndex(2)
             self.parent.dockwidget.tabWidget.setTabEnabled(2, True)
-
+            
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 

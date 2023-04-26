@@ -6,15 +6,21 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>440</width>
+    <width>466</width>
     <height>879</height>
    </rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>442</width>
+    <height>118</height>
+   </size>
   </property>
   <property name="maximumSize">
    <size>
@@ -25,10 +31,19 @@
   <property name="styleSheet">
    <string notr="true"/>
   </property>
+  <property name="allowedAreas">
+   <set>Qt::AllDockWidgetAreas</set>
+  </property>
   <property name="windowTitle">
-   <string>INSPECTION TILES</string>
+   <string>GLOBAL INSPECTION TILES</string>
   </property>
   <widget class="QWidget" name="dockWidgetContents">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="minimumSize">
     <size>
      <width>400</width>
@@ -53,11 +68,11 @@
      </widget>
     </item>
     <item>
-     <layout class="QGridLayout" name="gridLayout_2">
+     <layout class="QGridLayout" name="gridMain">
       <item row="0" column="0">
        <widget class="QTabWidget" name="tabWidget">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -87,7 +102,7 @@
             <height>54</height>
            </rect>
           </property>
-          <layout class="QGridLayout" name="gridLayout_3">
+          <layout class="QGridLayout" name="gridTiles">
            <item row="1" column="1">
             <widget class="QLabel" name="labelFile">
              <property name="text">
@@ -155,7 +170,7 @@
             <height>54</height>
            </rect>
           </property>
-          <layout class="QGridLayout" name="gridLayout_4">
+          <layout class="QGridLayout" name="gridDir">
            <item row="1" column="1">
             <widget class="QLabel" name="labelFile_2">
              <property name="text">
@@ -207,7 +222,7 @@
             <height>30</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_5">
+          <layout class="QHBoxLayout" name="fieldInterpreter">
            <item>
             <widget class="QLabel" name="label_4">
              <property name="text">
@@ -259,12 +274,29 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>470</y>
+            <y>480</y>
             <width>391</width>
             <height>131</height>
            </rect>
           </property>
-          <layout class="QVBoxLayout" name="layoutClassesBing"/>
+          <layout class="QVBoxLayout" name="layoutClassesBing">
+           <item>
+            <widget class="QListWidget" name="classesBing">
+             <property name="movement">
+              <enum>QListView::Free</enum>
+             </property>
+             <property name="resizeMode">
+              <enum>QListView::Adjust</enum>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+             <property name="itemAlignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
          <widget class="QWidget" name="layoutWidget_5">
           <property name="geometry">
@@ -275,7 +307,7 @@
             <height>31</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_3">
+          <layout class="QHBoxLayout" name="boxSelectedClassBing">
            <item>
             <widget class="QLabel" name="selectedClassBing">
              <property name="sizePolicy">
@@ -329,7 +361,7 @@
             <height>258</height>
            </rect>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
+          <layout class="QVBoxLayout" name="boxThumb">
            <item>
             <widget class="QLabel" name="thumBing">
              <property name="minimumSize">
@@ -358,7 +390,7 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>610</y>
+            <y>620</y>
             <width>391</width>
             <height>28</height>
            </rect>
@@ -376,7 +408,7 @@
             <height>61</height>
            </rect>
           </property>
-          <layout class="QGridLayout" name="gridLayout_8">
+          <layout class="QGridLayout" name="gridPeriodBing">
            <item row="1" column="1">
             <widget class="QDateTimeEdit" name="bingEndDate">
              <property name="sizePolicy">
@@ -524,7 +556,7 @@ border-radius: 3px</string>
             <height>21</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_8">
+          <layout class="QHBoxLayout" name="boxClasses">
            <item>
             <widget class="QLabel" name="labelClassBing">
              <property name="sizePolicy">
@@ -564,7 +596,7 @@ border-radius: 3px</string>
             <height>51</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="layoutTilesControl_2">
+          <layout class="QHBoxLayout" name="boxTitleGoogle">
            <item>
             <widget class="QLabel" name="tileInfoGoogle">
              <property name="font">
@@ -617,12 +649,23 @@ border-radius: 3px</string>
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>510</y>
+            <y>520</y>
             <width>391</width>
-            <height>221</height>
+            <height>141</height>
            </rect>
           </property>
-          <layout class="QVBoxLayout" name="layoutClassesGoogle"/>
+          <layout class="QVBoxLayout" name="layoutClassesGoogle">
+           <item>
+            <widget class="QListWidget" name="classesGoogle">
+             <property name="resizeMode">
+              <enum>QListView::Adjust</enum>
+             </property>
+             <property name="layoutMode">
+              <enum>QListView::Batched</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
          <widget class="QWidget" name="layoutWidget_8">
           <property name="geometry">
@@ -633,7 +676,7 @@ border-radius: 3px</string>
             <height>31</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_6">
+          <layout class="QHBoxLayout" name="boxSelectedClassGoogle">
            <item>
             <widget class="QLabel" name="selectedClassGoogle">
              <property name="sizePolicy">
@@ -687,7 +730,7 @@ border-radius: 3px</string>
             <height>34</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <layout class="QHBoxLayout" name="boxDateGoogle">
            <item>
             <widget class="QPushButton" name="btnPointDate">
              <property name="sizePolicy">
@@ -774,7 +817,7 @@ border-radius: 3px</string>
             <height>40</height>
            </rect>
           </property>
-          <layout class="QGridLayout" name="gridLayout_5">
+          <layout class="QGridLayout" name="gridImportGoogle">
            <item row="0" column="1">
             <widget class="QCheckBox" name="sameImage">
              <property name="text">
@@ -822,7 +865,7 @@ border-radius: 3px</string>
             <height>21</height>
            </rect>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_7">
+          <layout class="QHBoxLayout" name="boxClassesGoogle">
            <item>
             <widget class="QLabel" name="labelClassGoogle">
              <property name="sizePolicy">
@@ -857,7 +900,7 @@ border-radius: 3px</string>
             <height>281</height>
            </rect>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout_3">
+          <layout class="QVBoxLayout" name="boxBingImage">
            <item>
             <widget class="QLabel" name="label">
              <property name="font">
