@@ -403,7 +403,7 @@ class GlobalInspectionTiles:
             QApplication.instance().setOverrideCursor(Qt.BusyCursor) 
 
             self.configTiles()
-            self.setTileInfoVisible(visible=True)
+            # self.setTileInfoVisible(visible=True)
             self.setConfig(key='interpreterName', value=interpreterName.upper())
             self.dockwidget.btnInitInspections.setVisible(False)
 
