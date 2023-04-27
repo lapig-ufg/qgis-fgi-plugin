@@ -1,7 +1,6 @@
 <html>
 <body>
 <h3>Plugin Builder Results</h3>
-
 Congratulations! You just built a plugin for QGIS!<br/><br />
 
 <div id='help' style='font-size:.9em;'>
