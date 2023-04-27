@@ -27,7 +27,7 @@ from datetime import datetime
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QPixmap
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QApplication
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QApplication, QScrollArea, QVBoxLayout, QAbstractScrollArea
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFillSymbol
 
 # Initialize Qt resources from file resources.py
@@ -35,7 +35,6 @@ from .resources import *
 from .sources import connections
 from .src.inspections import InspectionController
 
-# Import the code for the DockWidget
 from .global_inspection_dockwidget import GlobalInspectionTilesDockWidget
 from os.path import expanduser
 
@@ -284,15 +283,8 @@ class GlobalInspectionTiles:
         self.dockwidget.tileInfoBing.setText(f"Tile {self.currentTileIndex + 1} of {len(self.tiles)}")        
         self.dockwidget.tileInfoGoogle.setText(f"Tile {self.currentTileIndex + 1} of {len(self.tiles)}")        
 
-        # filename = path.normpath(f"{self.dockwidget.fieldWorkingDirectory.text()}/{tile[0]}_{self.typeInspection['_id']}.gpkg") 
-
-
         self.inspectionController.createGridPixels(tile)
 
-        # if path.exists(filename):
-        #     self.inspectionController.loadTileFromFile(tile)
-        # else:
-            
     def loadTiles(self):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         """Load tiles from layer"""
@@ -403,7 +395,6 @@ class GlobalInspectionTiles:
             QApplication.instance().setOverrideCursor(Qt.BusyCursor) 
 
             self.configTiles()
-            # self.setTileInfoVisible(visible=True)
             self.setConfig(key='interpreterName', value=interpreterName.upper())
             self.dockwidget.btnInitInspections.setVisible(False)
 
@@ -417,14 +408,6 @@ class GlobalInspectionTiles:
 
         else: 
             self.iface.messageBar().pushMessage("", f"The name of interpreter is required!", level=Qgis.Critical, duration=5)    
-
-
-    # def setTileInfoVisible(self, visible):
-    #     if self.getConfig('imageSource') == 'BING':
-    #         self.dockwidget.tileInfoBing.setVisible(visible)
-    #     else:
-    #         self.dockwidget.tileInfoGoogle.setVisible(visible)
-    #         self.dockwidget.btnNext.setEnabled(visible)
 
     def run(self):
         """Run method that loads and starts the plugin"""
@@ -445,11 +428,6 @@ class GlobalInspectionTiles:
             self.dockwidget.btnNext.setIcon(QIcon(os.path.dirname(__file__) + "/img/save.png"))           
             self.iface.actionPan().trigger() 
 
-            # self.scroll = QScrollArea()  
-            # self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-            # self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            # self.scroll.setWidgetResizable(True)    
-            
             connections.xyz(self)
             self.inspectionController = InspectionController(self)
            
@@ -459,10 +437,6 @@ class GlobalInspectionTiles:
             
             QgsProject.instance().clear()
 
-            # QgsProject.instance().clear()
-            # Check if config file exists, if not create
-     
-            # self.setTileInfoVisible(visible=False)
             self.dockwidget.btnInitInspections.setVisible(False)
             self.dockwidget.btnClearSelectionBing.setVisible(False)
             self.dockwidget.btnClearSelectionGoogle.setVisible(False)
@@ -525,7 +499,6 @@ class GlobalInspectionTiles:
                     self.dockwidget.btnFile.setEnabled(False)
                     self.dockwidget.btnWorkingDirectory.setEnabled(False)
                     self.dockwidget.btnInitInspections.setVisible(False)
-                    # self.setTileInfoVisible(visible=True)
 
             self.dockwidget.btnFile.clicked.connect(self.openTilesFile)
             self.dockwidget.btnWorkingDirectory.clicked.connect(self.getDirPath)
@@ -541,8 +514,15 @@ class GlobalInspectionTiles:
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
 
-            # show the dockwidget
-            # TODO: fix to allow choice of dock location
+            # add scroll
 
+            scroll_tab = QScrollArea()
+            scroll_tab.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+            self.dockwidget.tabWidget.setMinimumHeight(750)
+            scroll_tab.setWidget(self.dockwidget.tabWidget)
+
+            self.dockwidget.gridMain.addWidget(scroll_tab)
+
+            # show the dockwidget
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
