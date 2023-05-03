@@ -1,20 +1,20 @@
 import math
 import sys
 
-from flask import abort
-from flask import render_template
-from flask import request
-from peewee import Database
-from peewee import DoesNotExist
-from peewee import Model
-from peewee import Proxy
-from peewee import SelectQuery
+from flask import abort, render_template, request
+from peewee import Database, DoesNotExist, Model, Proxy, SelectQuery
 from playhouse.db_url import connect as db_url_connect
 
 
 class PaginatedQuery(object):
-    def __init__(self, query_or_model, paginate_by, page_var='page', page=None,
-                 check_bounds=False):
+    def __init__(
+        self,
+        query_or_model,
+        paginate_by,
+        page_var='page',
+        page=None,
+        check_bounds=False,
+    ):
         self.paginate_by = paginate_by
         self.page_var = page_var
         self.page = page or None
@@ -38,8 +38,9 @@ class PaginatedQuery(object):
 
     def get_page_count(self):
         if not hasattr(self, '_page_count'):
-            self._page_count = int(math.ceil(
-                float(self.query.count()) / self.paginate_by))
+            self._page_count = int(
+                math.ceil(float(self.query.count()) / self.paginate_by)
+            )
         return self._page_count
 
     def get_object_list(self):
@@ -65,26 +66,38 @@ def get_object_or_404(query_or_model, *query):
     except DoesNotExist:
         abort(404)
 
-def object_list(template_name, query, context_variable='object_list',
-                paginate_by=20, page_var='page', page=None, check_bounds=True,
-                **kwargs):
+
+def object_list(
+    template_name,
+    query,
+    context_variable='object_list',
+    paginate_by=20,
+    page_var='page',
+    page=None,
+    check_bounds=True,
+    **kwargs
+):
     paginated_query = PaginatedQuery(
         query,
         paginate_by=paginate_by,
         page_var=page_var,
         page=page,
-        check_bounds=check_bounds)
+        check_bounds=check_bounds,
+    )
     kwargs[context_variable] = paginated_query.get_object_list()
     return render_template(
         template_name,
         pagination=paginated_query,
         page=paginated_query.get_page(),
-        **kwargs)
+        **kwargs
+    )
+
 
 def get_current_url():
     if not request.query_string:
         return request.path
     return '%s?%s' % (request.path, request.query_string)
+
 
 def get_next_url(default='/'):
     if request.args.get('next'):
@@ -92,6 +105,7 @@ def get_next_url(default='/'):
     elif request.form.get('next'):
         return request.form['next']
     return default
+
 
 class FlaskDB(object):
     """
@@ -132,8 +146,10 @@ class FlaskDB(object):
             email = CharField()
 
     """
-    def __init__(self, app=None, database=None, model_class=Model,
-                 excluded_routes=None):
+
+    def __init__(
+        self, app=None, database=None, model_class=Model, excluded_routes=None
+    ):
         self.database = None  # Reference to actual Peewee database instance.
         self.base_model_class = model_class
         self._app = app
@@ -151,8 +167,10 @@ class FlaskDB(object):
             elif 'DATABASE_URL' in app.config:
                 initial_db = app.config['DATABASE_URL']
             else:
-                raise ValueError('Missing required configuration data for '
-                                 'database: DATABASE or DATABASE_URL.')
+                raise ValueError(
+                    'Missing required configuration data for '
+                    'database: DATABASE or DATABASE_URL.'
+                )
         else:
             initial_db = self._db
 
@@ -181,8 +199,9 @@ class FlaskDB(object):
             name = config_dict.pop('name')
             engine = config_dict.pop('engine')
         except KeyError:
-            raise RuntimeError('DATABASE configuration must specify a '
-                               '`name` and `engine`.')
+            raise RuntimeError(
+                'DATABASE configuration must specify a ' '`name` and `engine`.'
+            )
 
         if '.' in engine:
             path, class_name = engine.rsplit('.', 1)
@@ -199,8 +218,10 @@ class FlaskDB(object):
         except AttributeError:
             raise RuntimeError('Database engine not found %s' % engine)
         except AssertionError:
-            raise RuntimeError('Database engine not a subclass of '
-                               'peewee.Database: %s' % engine)
+            raise RuntimeError(
+                'Database engine not a subclass of '
+                'peewee.Database: %s' % engine
+            )
 
         return database_class(name, **config_dict)
 

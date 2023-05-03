@@ -74,8 +74,10 @@ class ChangeLog(object):
             if isinstance(field, JSONField):
                 # Ensure that values are cast to JSON so that the serialization
                 # is preserved when calculating the old / new.
-                if use_old: old = 'json(%s)' % old
-                if use_new: new = 'json(%s)' % new
+                if use_old:
+                    old = 'json(%s)' % old
+                if use_new:
+                    new = 'json(%s)' % new
 
             col_array.append("json_array('%s', %s, %s)" % (column, old, new))
 
@@ -92,27 +94,39 @@ class ChangeLog(object):
             'new_old': 'NEW' if action != 'DELETE' else 'OLD',
             'primary_key': model._meta.primary_key.column_name,
             'column_array': cols,
-            'change_table': self.table_name}
+            'change_table': self.table_name,
+        }
 
     def drop_trigger_sql(self, model, action):
         assert action in self._actions
         return self.drop_template % {
             'table': model._meta.table_name,
-            'action': action}
+            'action': action,
+        }
 
     @property
     def model(self):
         if not hasattr(self, '_changelog_model'):
+
             class ChangeLog(self.base_model):
                 class Meta:
                     database = self.db
                     table_name = self.table_name
+
             self._changelog_model = ChangeLog
 
         return self._changelog_model
 
-    def install(self, model, skip_fields=None, drop=True, insert=True,
-                update=True, delete=True, create_table=True):
+    def install(
+        self,
+        model,
+        skip_fields=None,
+        drop=True,
+        insert=True,
+        update=True,
+        delete=True,
+        create_table=True,
+    ):
         ChangeLog = self.model
         if create_table:
             ChangeLog.create_table()

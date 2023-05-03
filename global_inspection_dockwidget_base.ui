@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>466</width>
-    <height>879</height>
+    <width>442</width>
+    <height>717</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -19,7 +19,7 @@
   <property name="minimumSize">
    <size>
     <width>442</width>
-    <height>118</height>
+    <height>402</height>
    </size>
   </property>
   <property name="maximumSize">
@@ -46,7 +46,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>400</width>
+     <width>0</width>
      <height>0</height>
     </size>
    </property>
@@ -90,6 +90,12 @@
          <number>2</number>
         </property>
         <widget class="QWidget" name="tabConfig">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
          <attribute name="title">
           <string>Config</string>
          </attribute>
@@ -237,8 +243,11 @@
          </widget>
         </widget>
         <widget class="QWidget" name="tabTilesBing">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
          <attribute name="title">
-          <string>Tiles Bing</string>
+          <string>Bing Tiles </string>
          </attribute>
          <widget class="QWidget" name="layoutWidget_4">
           <property name="geometry">
@@ -276,7 +285,7 @@
             <x>10</x>
             <y>480</y>
             <width>391</width>
-            <height>131</height>
+            <height>77</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="layoutClassesBing">
@@ -390,7 +399,7 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>620</y>
+            <y>580</y>
             <width>391</width>
             <height>28</height>
            </rect>
@@ -585,7 +594,7 @@ border-radius: 3px</string>
         </widget>
         <widget class="QWidget" name="tabTilesGoogle">
          <attribute name="title">
-          <string>Tiles Google</string>
+          <string>Google Tiles </string>
          </attribute>
          <widget class="QWidget" name="layoutWidget_7">
           <property name="geometry">
@@ -651,7 +660,7 @@ border-radius: 3px</string>
             <x>10</x>
             <y>520</y>
             <width>391</width>
-            <height>141</height>
+            <height>77</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="layoutClassesGoogle">

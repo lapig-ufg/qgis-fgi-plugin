@@ -7,11 +7,10 @@ from getpass import getpass
 from optparse import OptionParser
 
 from peewee import *
-from peewee import print_
 from peewee import __version__ as peewee_version
+from peewee import print_
 from playhouse.cockroachdb import CockroachDatabase
 from playhouse.reflection import *
-
 
 HEADER = """from peewee import *%s
 
@@ -36,14 +35,17 @@ DATABASE_ALIASES = {
     SqliteDatabase: ['sqlite', 'sqlite3'],
 }
 
-DATABASE_MAP = dict((value, key)
-                    for key in DATABASE_ALIASES
-                    for value in DATABASE_ALIASES[key])
+DATABASE_MAP = dict(
+    (value, key) for key in DATABASE_ALIASES for value in DATABASE_ALIASES[key]
+)
+
 
 def make_introspector(database_type, database_name, **kwargs):
     if database_type not in DATABASE_MAP:
-        err('Unrecognized database, must be one of: %s' %
-            ', '.join(DATABASE_MAP.keys()))
+        err(
+            'Unrecognized database, must be one of: %s'
+            % ', '.join(DATABASE_MAP.keys())
+        )
         sys.exit(1)
 
     schema = kwargs.pop('schema', None)
@@ -51,18 +53,26 @@ def make_introspector(database_type, database_name, **kwargs):
     db = DatabaseClass(database_name, **kwargs)
     return Introspector.from_database(db, schema=schema)
 
-def print_models(introspector, tables=None, preserve_order=False,
-                 include_views=False, ignore_unknown=False, snake_case=True):
-    database = introspector.introspect(table_names=tables,
-                                       include_views=include_views,
-                                       snake_case=snake_case)
+
+def print_models(
+    introspector,
+    tables=None,
+    preserve_order=False,
+    include_views=False,
+    ignore_unknown=False,
+    snake_case=True,
+):
+    database = introspector.introspect(
+        table_names=tables, include_views=include_views, snake_case=snake_case
+    )
 
     db_kwargs = introspector.get_database_kwargs()
     header = HEADER % (
         introspector.get_additional_imports(),
         introspector.get_database_class().__name__,
         introspector.get_database_name(),
-        ', **%s' % repr(db_kwargs) if db_kwargs else '')
+        ', **%s' % repr(db_kwargs) if db_kwargs else '',
+    )
     print_(header)
 
     if not ignore_unknown:
@@ -94,11 +104,14 @@ def print_models(introspector, tables=None, preserve_order=False,
             columns = sorted(columns)
         primary_keys = database.primary_keys[table]
         for name, column in columns:
-            skip = all([
-                name in primary_keys,
-                name == 'id',
-                len(primary_keys) == 1,
-                column.field_class in introspector.pk_classes])
+            skip = all(
+                [
+                    name in primary_keys,
+                    name == 'id',
+                    len(primary_keys) == 1,
+                    column.field_class in introspector.pk_classes,
+                ]
+            )
             if skip:
                 continue
             if column.primary_key and len(primary_keys) > 1:
@@ -115,23 +128,26 @@ def print_models(introspector, tables=None, preserve_order=False,
 
         print_('')
         print_('    class Meta:')
-        print_('        table_name = \'%s\'' % table)
+        print_("        table_name = '%s'" % table)
         multi_column_indexes = database.multi_column_indexes(table)
         if multi_column_indexes:
             print_('        indexes = (')
             for fields, unique in sorted(multi_column_indexes):
-                print_('            ((%s), %s),' % (
-                    ', '.join("'%s'" % field for field in fields),
-                    unique,
-                ))
+                print_(
+                    '            ((%s), %s),'
+                    % (
+                        ', '.join("'%s'" % field for field in fields),
+                        unique,
+                    )
+                )
             print_('        )')
 
         if introspector.schema:
-            print_('        schema = \'%s\'' % introspector.schema)
+            print_("        schema = '%s'" % introspector.schema)
         if len(primary_keys) > 1:
-            pk_field_names = sorted([
-                field.name for col, field in columns
-                if col in primary_keys])
+            pk_field_names = sorted(
+                [field.name for col, field in columns if col in primary_keys]
+            )
             pk_list = ', '.join("'%s'" % pk for pk in pk_field_names)
             print_('        primary_key = CompositeKey(%s)' % pk_list)
         elif not primary_keys:
@@ -145,6 +161,7 @@ def print_models(introspector, tables=None, preserve_order=False,
         if table not in seen:
             if not tables or table in tables:
                 _print_table(table, seen)
+
 
 def print_header(cmd_line, introspector):
     timestamp = datetime.datetime.now()
@@ -160,6 +177,7 @@ def err(msg):
     sys.stderr.write('\033[91m%s\033[0m\n' % msg)
     sys.stderr.flush()
 
+
 def get_option_parser():
     parser = OptionParser(usage='usage: %prog [options] database_name')
     ao = parser.add_option
@@ -168,25 +186,66 @@ def get_option_parser():
     ao('-u', '--user', dest='user')
     ao('-P', '--password', dest='password', action='store_true')
     engines = sorted(DATABASE_MAP)
-    ao('-e', '--engine', dest='engine', choices=engines,
-       help=('Database type, e.g. sqlite, mysql, postgresql or cockroachdb. '
-             'Default is "postgresql".'))
+    ao(
+        '-e',
+        '--engine',
+        dest='engine',
+        choices=engines,
+        help=(
+            'Database type, e.g. sqlite, mysql, postgresql or cockroachdb. '
+            'Default is "postgresql".'
+        ),
+    )
     ao('-s', '--schema', dest='schema')
-    ao('-t', '--tables', dest='tables',
-       help=('Only generate the specified tables. Multiple table names should '
-             'be separated by commas.'))
-    ao('-v', '--views', dest='views', action='store_true',
-       help='Generate model classes for VIEWs in addition to tables.')
-    ao('-i', '--info', dest='info', action='store_true',
-       help=('Add database information and other metadata to top of the '
-             'generated file.'))
-    ao('-o', '--preserve-order', action='store_true', dest='preserve_order',
-       help='Model definition column ordering matches source table.')
-    ao('-I', '--ignore-unknown', action='store_true', dest='ignore_unknown',
-       help='Ignore fields whose type cannot be determined.')
-    ao('-L', '--legacy-naming', action='store_true', dest='legacy_naming',
-       help='Use legacy table- and column-name generation.')
+    ao(
+        '-t',
+        '--tables',
+        dest='tables',
+        help=(
+            'Only generate the specified tables. Multiple table names should '
+            'be separated by commas.'
+        ),
+    )
+    ao(
+        '-v',
+        '--views',
+        dest='views',
+        action='store_true',
+        help='Generate model classes for VIEWs in addition to tables.',
+    )
+    ao(
+        '-i',
+        '--info',
+        dest='info',
+        action='store_true',
+        help=(
+            'Add database information and other metadata to top of the '
+            'generated file.'
+        ),
+    )
+    ao(
+        '-o',
+        '--preserve-order',
+        action='store_true',
+        dest='preserve_order',
+        help='Model definition column ordering matches source table.',
+    )
+    ao(
+        '-I',
+        '--ignore-unknown',
+        action='store_true',
+        dest='ignore_unknown',
+        help='Ignore fields whose type cannot be determined.',
+    )
+    ao(
+        '-L',
+        '--legacy-naming',
+        action='store_true',
+        dest='legacy_naming',
+        help='Use legacy table- and column-name generation.',
+    )
     return parser
+
 
 def get_connect_kwargs(options):
     ops = ('host', 'port', 'user', 'schema')
@@ -212,8 +271,11 @@ if __name__ == '__main__':
 
     tables = None
     if options.tables:
-        tables = [table.strip() for table in options.tables.split(',')
-                  if table.strip()]
+        tables = [
+            table.strip()
+            for table in options.tables.split(',')
+            if table.strip()
+        ]
 
     engine = options.engine
     if engine is None:
@@ -224,5 +286,11 @@ if __name__ == '__main__':
         cmd_line = ' '.join(raw_argv[1:])
         print_header(cmd_line, introspector)
 
-    print_models(introspector, tables, options.preserve_order, options.views,
-                 options.ignore_unknown, not options.legacy_naming)
+    print_models(
+        introspector,
+        tables,
+        options.preserve_order,
+        options.views,
+        options.ignore_unknown,
+        not options.legacy_naming,
+    )

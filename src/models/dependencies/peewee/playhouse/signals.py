@@ -19,8 +19,10 @@ class Signal(object):
             self._receivers.add(key)
             self._receiver_list.append((name, receiver, sender))
         else:
-            raise ValueError('receiver named %s (for sender=%s) already '
-                             'connected' % (name, sender or 'any'))
+            raise ValueError(
+                'receiver named %s (for sender=%s) already '
+                'connected' % (name, sender or 'any')
+            )
 
     def disconnect(self, receiver=None, name=None, sender=None):
         if receiver:
@@ -30,17 +32,23 @@ class Signal(object):
 
         key = (name, sender)
         if key not in self._receivers:
-            raise ValueError('receiver named %s for sender=%s not found.' %
-                             (name, sender or 'any'))
+            raise ValueError(
+                'receiver named %s for sender=%s not found.'
+                % (name, sender or 'any')
+            )
 
         self._receivers.remove(key)
-        self._receiver_list = [(n, r, s) for n, r, s in self._receiver_list
-                               if n != name and s != sender]
+        self._receiver_list = [
+            (n, r, s)
+            for n, r, s in self._receiver_list
+            if n != name and s != sender
+        ]
 
     def __call__(self, name=None, sender=None):
         def decorator(fn):
             self.connect(fn, name, sender)
             return fn
+
         return decorator
 
     def send(self, instance, *args, **kwargs):

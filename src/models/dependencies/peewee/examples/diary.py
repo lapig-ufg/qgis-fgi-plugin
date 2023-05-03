@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from collections import OrderedDict
 import datetime
-from getpass import getpass
 import sys
+from collections import OrderedDict
+from getpass import getpass
 
 from peewee import *
 from playhouse.sqlcipher_ext import SqlCipherDatabase
@@ -72,11 +72,13 @@ def search_entries():
     view_entries(input('Search query: '))
 
 
-menu = OrderedDict([
-    ('a', add_entry),
-    ('v', view_entries),
-    ('s', search_entries),
-])
+menu = OrderedDict(
+    [
+        ('a', add_entry),
+        ('v', view_entries),
+        ('s', search_entries),
+    ]
+)
 
 if __name__ == '__main__':
     # Collect the passphrase using a secure method.

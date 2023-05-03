@@ -2,7 +2,6 @@ import sys
 from difflib import SequenceMatcher
 from random import randint
 
-
 IS_PY3K = sys.version_info[0] == 3
 
 # String UDF.

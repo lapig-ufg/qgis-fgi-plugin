@@ -2,7 +2,8 @@ from peewee import *
 
 try:
     import psycopg
-    #from psycopg.types.json import Jsonb
+
+    # from psycopg.types.json import Jsonb
 except ImportError:
     psycopg = None
 

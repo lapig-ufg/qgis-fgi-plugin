@@ -8,15 +8,18 @@ import logging
 import uuid
 
 from peewee import *
-from peewee import ColumnBase
-from peewee import Expression
-from peewee import Node
-from peewee import NodeList
-from peewee import SENTINEL
-from peewee import __exception_wrapper__
+from peewee import (
+    SENTINEL,
+    ColumnBase,
+    Expression,
+    Node,
+    NodeList,
+    __exception_wrapper__,
+)
 
 try:
     from psycopg2cffi import compat
+
     compat.register()
 except ImportError:
     pass
@@ -24,8 +27,11 @@ except ImportError:
 try:
     from psycopg2.extras import register_hstore
 except ImportError:
+
     def register_hstore(c, globally):
         pass
+
+
 try:
     from psycopg2.extras import Json
 except:
@@ -94,13 +100,15 @@ class _JsonLookupBase(_LookupNode):
         return Expression(
             self.as_json(True),
             JSONB_CONTAINS_ANY_KEY,
-            Value(list(keys), unpack=False))
+            Value(list(keys), unpack=False),
+        )
 
     def contains_all(self, *keys):
         return Expression(
             self.as_json(True),
             JSONB_CONTAINS_ALL_KEYS,
-            Value(list(keys), unpack=False))
+            Value(list(keys), unpack=False),
+        )
 
     def has_key(self, key):
         return Expression(self.as_json(True), JSONB_CONTAINS_KEY, key)
@@ -115,19 +123,18 @@ class JsonLookup(_JsonLookupBase):
         for part in self.parts[:-1]:
             ctx.literal('->').sql(part)
         if self.parts:
-            (ctx
-             .literal('->' if self._as_json else '->>')
-             .sql(self.parts[-1]))
+            (ctx.literal('->' if self._as_json else '->>').sql(self.parts[-1]))
 
         return ctx
 
 
 class JsonPath(_JsonLookupBase):
     def __sql__(self, ctx):
-        return (ctx
-                .sql(self.node)
-                .literal('#>' if self._as_json else '#>>')
-                .sql(Value('{%s}' % ','.join(map(str, self.parts)))))
+        return (
+            ctx.sql(self.node)
+            .literal('#>' if self._as_json else '#>>')
+            .sql(Value('{%s}' % ','.join(map(str, self.parts))))
+        )
 
 
 class ObjectSlice(_LookupNode):
@@ -167,8 +174,15 @@ class IndexedFieldMixin(object):
 class ArrayField(IndexedFieldMixin, Field):
     passthrough = True
 
-    def __init__(self, field_class=IntegerField, field_kwargs=None,
-                 dimensions=1, convert_values=False, *args, **kwargs):
+    def __init__(
+        self,
+        field_class=IntegerField,
+        field_kwargs=None,
+        dimensions=1,
+        convert_values=False,
+        *args,
+        **kwargs
+    ):
         self.__field = field_class(**(field_kwargs or {}))
         self.dimensions = dimensions
         self.convert_values = convert_values
@@ -215,7 +229,9 @@ class ArrayField(IndexedFieldMixin, Field):
     def _e(op):
         def inner(self, rhs):
             return Expression(self, op, ArrayValue(self, rhs))
+
         return inner
+
     __eq__ = _e(OP.EQ)
     __ne__ = _e(OP.NE)
     __gt__ = _e(OP.GT)
@@ -240,10 +256,11 @@ class ArrayValue(Node):
         self.value = value
 
     def __sql__(self, ctx):
-        return (ctx
-                .sql(Value(self.value, unpack=False))
-                .literal('::')
-                .sql(self.field.ddl_datatype(ctx)))
+        return (
+            ctx.sql(Value(self.value, unpack=False))
+            .literal('::')
+            .sql(self.field.ddl_datatype(ctx))
+        )
 
 
 class DateTimeTZField(DateTimeField):
@@ -291,8 +308,9 @@ class HStoreField(IndexedFieldMixin, Field):
         return Expression(self, HCONTAINS_KEY, value)
 
     def contains_any(self, *keys):
-        return Expression(self, HCONTAINS_ANY_KEY, Value(list(keys),
-                                                         unpack=False))
+        return Expression(
+            self, HCONTAINS_ANY_KEY, Value(list(keys), unpack=False)
+        )
 
 
 class JSONField(Field):
@@ -347,22 +365,23 @@ class BinaryJSONField(IndexedFieldMixin, JSONField):
         return Expression(
             cast_jsonb(self),
             JSONB_CONTAINS_ANY_KEY,
-            Value(list(items), unpack=False))
+            Value(list(items), unpack=False),
+        )
 
     def contains_all(self, *items):
         return Expression(
             cast_jsonb(self),
             JSONB_CONTAINS_ALL_KEYS,
-            Value(list(items), unpack=False))
+            Value(list(items), unpack=False),
+        )
 
     def has_key(self, key):
         return Expression(cast_jsonb(self), JSONB_CONTAINS_KEY, key)
 
     def remove(self, *items):
         return Expression(
-            cast_jsonb(self),
-            JSONB_REMOVE,
-            Value(list(items), unpack=False))
+            cast_jsonb(self), JSONB_REMOVE, Value(list(items), unpack=False)
+        )
 
 
 class TSVectorField(IndexedFieldMixin, TextField):
@@ -379,9 +398,8 @@ def Match(field, query, language=None):
     params = (language, query) if language is not None else (query,)
     field_params = (language, field) if language is not None else (field,)
     return Expression(
-        fn.to_tsvector(*field_params),
-        TS_MATCH,
-        fn.to_tsquery(*params))
+        fn.to_tsvector(*field_params), TS_MATCH, fn.to_tsquery(*params)
+    )
 
 
 class IntervalField(Field):
@@ -437,8 +455,9 @@ class ServerSideQuery(Node):
 
     def _execute(self, database):
         if self._cursor_wrapper is None:
-            cursor = database.execute(self.query, named_cursor=True,
-                                      array_size=self.array_size)
+            cursor = database.execute(
+                self.query, named_cursor=True, array_size=self.array_size
+            )
             self._cursor_wrapper = self.query._get_cursor_wrapper(cursor)
         return self._cursor_wrapper
 
@@ -454,9 +473,12 @@ def ServerSide(query, database=None, array_size=None):
 
 class _empty_object(object):
     __slots__ = ()
+
     def __nonzero__(self):
         return False
+
     __bool__ = __nonzero__
+
 
 __named_cursor__ = _empty_object()
 
@@ -483,12 +505,19 @@ class PostgresqlExtDatabase(PostgresqlDatabase):
             return self._state.conn.cursor(name=str(uuid.uuid1()))
         return self._state.conn.cursor()
 
-    def execute(self, query, commit=SENTINEL, named_cursor=False,
-                array_size=None, **context_options):
+    def execute(
+        self,
+        query,
+        commit=SENTINEL,
+        named_cursor=False,
+        array_size=None,
+        **context_options
+    ):
         ctx = self.get_sql_context(**context_options)
         sql, params = ctx.sql(query).query()
-        named_cursor = named_cursor or (self._server_side_cursors and
-                                        sql[:6].lower() == 'select')
+        named_cursor = named_cursor or (
+            self._server_side_cursors and sql[:6].lower() == 'select'
+        )
         if named_cursor:
             commit = __named_cursor__
         cursor = self.execute_sql(sql, params, commit=commit)

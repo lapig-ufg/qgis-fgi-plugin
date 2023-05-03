@@ -11,8 +11,7 @@ try:
 except ImportError:
     import pickle
 
-from peewee import BlobField
-from peewee import buffer_type
+from peewee import BlobField, buffer_type
 
 
 class CompressedField(BlobField):
@@ -23,8 +22,7 @@ class CompressedField(BlobField):
         BZ2: bz2,
     }
 
-    def __init__(self, compression_level=6, algorithm=ZLIB, *args,
-                 **kwargs):
+    def __init__(self, compression_level=6, algorithm=ZLIB, *args, **kwargs):
         self.compression_level = compression_level
         if algorithm not in self.algorithm_to_import:
             raise ValueError('Unrecognized algorithm %s' % algorithm)
@@ -44,7 +42,8 @@ class CompressedField(BlobField):
     def db_value(self, value):
         if value is not None:
             return self._constructor(
-                self.compress(value, self.compression_level))
+                self.compress(value, self.compression_level)
+            )
 
 
 class PickleField(BlobField):

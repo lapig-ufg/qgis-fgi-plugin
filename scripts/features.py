@@ -1,5 +1,7 @@
-import numpy as np
 import unicodedata
+
+import numpy as np
+
 
 def splitFeatures(layer, size):
     listFeatures = [feature.GetFID() for feature in layer]

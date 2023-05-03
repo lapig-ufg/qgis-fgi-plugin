@@ -21,10 +21,10 @@ Example "Analytics" app. To start using this on your site, do the following:
 Take a look at `reports.py` for some interesting queries you can perform
 on your pageview data.
 """
+import binascii
 import datetime
 import os
 from urllib.parse import parse_qsl, urlparse
-import binascii
 
 from flask import Flask, Response, abort, g, request
 from peewee import *
@@ -33,13 +33,16 @@ from playhouse.postgres_ext import BinaryJSONField, PostgresqlExtDatabase
 # Analytics settings.
 # 1px gif.
 BEACON = binascii.unhexlify(
-    '47494638396101000100800000dbdfef00000021f90401000000002c00000000010001000002024401003b')
+    '47494638396101000100800000dbdfef00000021f90401000000002c00000000010001000002024401003b'
+)
 DATABASE_NAME = 'analytics'
 DOMAIN = 'http://analytics.yourdomain.com'  # TODO: change me.
 JAVASCRIPT = """(function(id){
     var d=document,i=new Image,e=encodeURIComponent;
     i.src='%s/a.gif?id='+id+'&url='+e(d.location.href)+'&ref='+e(d.referrer)+'&t='+e(d.title);
-    })(%s)""".replace('\n', '')
+    })(%s)""".replace(
+    '\n', ''
+)
 
 # Flask settings.
 DEBUG = bool(os.environ.get('DEBUG'))
@@ -87,7 +90,8 @@ class PageView(BaseModel):
             ip=request.headers.get('x-forwarded-for', request.remote_addr),
             referrer=request.args.get('ref') or '',
             headers=dict(request.headers),
-            params=params)
+            params=params,
+        )
 
 
 @app.route('/a.gif')
@@ -121,13 +125,15 @@ def script():
     if account_id:
         return Response(
             app.config['JAVASCRIPT'] % (app.config['DOMAIN'], account_id),
-            mimetype='text/javascript')
+            mimetype='text/javascript',
+        )
     return Response('', mimetype='text/javascript')
 
 
 @app.errorhandler(404)
 def not_found(e):
     return Response('<h3>Not found.</h3>')
+
 
 # Request handlers -- these two hooks are provided by flask and we will use them
 # to create and tear down a database connection on each request.
