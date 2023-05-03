@@ -14,8 +14,10 @@ class Hexastore(object):
         elif isinstance(database, Database):
             self.db = database
         else:
-            raise ValueError('Expected database filename or a Database '
-                             'instance. Got: %s' % repr(database))
+            raise ValueError(
+                'Expected database filename or a Database '
+                'instance. Got: %s' % repr(database)
+            )
 
         self.v = _VariableFactory()
         self.G = self.get_model()
@@ -25,6 +27,7 @@ class Hexastore(object):
             subj = TextField()
             pred = TextField()
             obj = TextField()
+
             class Meta:
                 database = self.db
                 indexes = (
@@ -44,14 +47,17 @@ class Hexastore(object):
         self.G.insert_many(items, fields=fields).execute()
 
     def delete(self, s, p, o):
-        return (self.G.delete()
-                .where(self.G.subj == s, self.G.pred == p, self.G.obj == o)
-                .execute())
+        return (
+            self.G.delete()
+            .where(self.G.subj == s, self.G.pred == p, self.G.obj == o)
+            .execute()
+        )
 
     def query(self, s=None, p=None, o=None):
         fields = (self.G.subj, self.G.pred, self.G.obj)
-        expressions = [(f == v) for f, v in zip(fields, (s, p, o))
-                       if v is not None]
+        expressions = [
+            (f == v) for f, v in zip(fields, (s, p, o)) if v is not None
+        ]
         return self.G.select().where(*expressions)
 
     def search(self, *conditions):
@@ -78,23 +84,27 @@ class Hexastore(object):
 
         for var, fields in binds.items():
             selection.append(fields[0].alias(var.name))
-            pairwise = [(fields[i - 1] == fields[i])
-                        for i in range(1, len(fields))]
+            pairwise = [
+                (fields[i - 1] == fields[i]) for i in range(1, len(fields))
+            ]
             if pairwise:
                 accum.append(reduce(operator.and_, pairwise))
             sources.update([field.source for field in fields])
 
-        return (self.G
-                .select(*selection)
-                .from_(*list(sources))
-                .where(*accum)
-                .dicts())
+        return (
+            self.G.select(*selection)
+            .from_(*list(sources))
+            .where(*accum)
+            .dicts()
+        )
 
 
 class _VariableFactory(object):
     def __getattr__(self, name):
         return Variable(name)
+
     __call__ = __getattr__
+
 
 class Variable(object):
     __slots__ = ('name',)
@@ -118,19 +128,15 @@ if __name__ == '__main__':
         ('charlie', 'likes', 'mickey'),
         ('charlie', 'likes', 'scout'),
         ('charlie', 'likes', 'zaizee'),
-
         ('huey', 'likes', 'charlie'),
         ('huey', 'likes', 'scout'),
         ('huey', 'likes', 'zaizee'),
-
         ('mickey', 'likes', 'beanie'),
         ('mickey', 'likes', 'charlie'),
         ('mickey', 'likes', 'scout'),
-
         ('zaizee', 'likes', 'beanie'),
         ('zaizee', 'likes', 'charlie'),
         ('zaizee', 'likes', 'scout'),
-
         ('charlie', 'lives', 'topeka'),
         ('beanie', 'lives', 'heaven'),
         ('huey', 'lives', 'topeka'),
@@ -147,8 +153,7 @@ if __name__ == '__main__':
 
     print('\nmy friends in heaven?')
     X = h.v.x
-    results = h.search(('charlie', 'likes', X),
-                       (X, 'lives', 'heaven'))
+    results = h.search(('charlie', 'likes', X), (X, 'lives', 'heaven'))
     for result in results:
         print(result['x'])
 
@@ -161,8 +166,8 @@ if __name__ == '__main__':
 
     print('\nliked by both charlie, huey and mickey?')
     X = h.v.x
-    results = h.search(('charlie', 'likes', X),
-                       ('huey', 'likes', X),
-                       ('mickey', 'likes', X))
+    results = h.search(
+        ('charlie', 'likes', X), ('huey', 'likes', X), ('mickey', 'likes', X)
+    )
     for result in results:
         print(result['x'])

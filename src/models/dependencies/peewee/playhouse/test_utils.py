@@ -1,6 +1,5 @@
-from functools import wraps
 import logging
-
+from functools import wraps
 
 logger = logging.getLogger('peewee')
 
@@ -33,8 +32,13 @@ class count_queries(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         logger.removeHandler(self._handler)
         if self.only_select:
-            self.count = len([q for q in self._handler.queries
-                              if q.msg[0].startswith('SELECT ')])
+            self.count = len(
+                [
+                    q
+                    for q in self._handler.queries
+                    if q.msg[0].startswith('SELECT ')
+                ]
+            )
         else:
             self.count = len(self._handler.queries)
 

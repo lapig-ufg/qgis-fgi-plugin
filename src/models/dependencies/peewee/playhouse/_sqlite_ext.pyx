@@ -3,31 +3,26 @@ import zlib
 
 cimport cython
 from cpython cimport datetime
-from cpython.bytes cimport PyBytes_AsStringAndSize
-from cpython.bytes cimport PyBytes_Check
-from cpython.bytes cimport PyBytes_FromStringAndSize
-from cpython.bytes cimport PyBytes_AS_STRING
+from cpython.bytes cimport (PyBytes_AS_STRING, PyBytes_AsStringAndSize,
+                            PyBytes_Check, PyBytes_FromStringAndSize)
 from cpython.object cimport PyObject
-from cpython.ref cimport Py_INCREF, Py_DECREF
-from cpython.unicode cimport PyUnicode_AsUTF8String
-from cpython.unicode cimport PyUnicode_Check
-from cpython.unicode cimport PyUnicode_DecodeUTF8
+from cpython.ref cimport Py_DECREF, Py_INCREF
+from cpython.unicode cimport (PyUnicode_AsUTF8String, PyUnicode_Check,
+                              PyUnicode_DecodeUTF8)
 from cpython.version cimport PY_MAJOR_VERSION
 from libc.float cimport DBL_MAX
-from libc.math cimport ceil, log, sqrt
+from libc.math cimport ceil, log
 from libc.math cimport pow as cpow
+from libc.math cimport sqrt
 #from libc.stdint cimport ssize_t
-from libc.stdint cimport uint8_t
-from libc.stdint cimport uint32_t
+from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free, malloc, rand
 from libc.string cimport memcpy, memset, strlen
 
-from peewee import InterfaceError
-from peewee import Node
-from peewee import OperationalError
-from peewee import sqlite3 as pysqlite
-
 import traceback
+
+from peewee import InterfaceError, Node, OperationalError
+from peewee import sqlite3 as pysqlite
 
 
 cdef struct sqlite3_index_constraint:

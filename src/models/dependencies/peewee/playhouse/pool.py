@@ -39,17 +39,17 @@ from collections import namedtuple
 from itertools import chain
 
 try:
-    from psycopg2.extensions import TRANSACTION_STATUS_IDLE
-    from psycopg2.extensions import TRANSACTION_STATUS_INERROR
-    from psycopg2.extensions import TRANSACTION_STATUS_UNKNOWN
+    from psycopg2.extensions import (
+        TRANSACTION_STATUS_IDLE,
+        TRANSACTION_STATUS_INERROR,
+        TRANSACTION_STATUS_UNKNOWN,
+    )
 except ImportError:
-    TRANSACTION_STATUS_IDLE = \
-            TRANSACTION_STATUS_INERROR = \
-            TRANSACTION_STATUS_UNKNOWN = None
+    TRANSACTION_STATUS_IDLE = (
+        TRANSACTION_STATUS_INERROR
+    ) = TRANSACTION_STATUS_UNKNOWN = None
 
-from peewee import MySQLDatabase
-from peewee import PostgresqlDatabase
-from peewee import SqliteDatabase
+from peewee import MySQLDatabase, PostgresqlDatabase, SqliteDatabase
 
 logger = logging.getLogger('peewee.pool')
 
@@ -60,16 +60,24 @@ def make_int(val):
     return val
 
 
-class MaxConnectionsExceeded(ValueError): pass
+class MaxConnectionsExceeded(ValueError):
+    pass
 
 
-PoolConnection = namedtuple('PoolConnection', ('timestamp', 'connection',
-                                               'checked_out'))
+PoolConnection = namedtuple(
+    'PoolConnection', ('timestamp', 'connection', 'checked_out')
+)
 
 
 class PooledDatabase(object):
-    def __init__(self, database, max_connections=20, stale_timeout=None,
-                 timeout=None, **kwargs):
+    def __init__(
+        self,
+        database,
+        max_connections=20,
+        stale_timeout=None,
+        timeout=None,
+        **kwargs
+    ):
         self._max_connections = make_int(max_connections)
         self._stale_timeout = make_int(stale_timeout)
         self._wait_timeout = make_int(timeout)
@@ -92,8 +100,14 @@ class PooledDatabase(object):
 
         super(PooledDatabase, self).__init__(database, **kwargs)
 
-    def init(self, database, max_connections=None, stale_timeout=None,
-             timeout=None, **connect_kwargs):
+    def init(
+        self,
+        database,
+        max_connections=None,
+        stale_timeout=None,
+        timeout=None,
+        **connect_kwargs
+    ):
         super(PooledDatabase, self).init(database, **connect_kwargs)
         if max_connections is not None:
             self._max_connections = make_int(max_connections)
@@ -116,8 +130,9 @@ class PooledDatabase(object):
                 time.sleep(0.1)
             else:
                 return ret
-        raise MaxConnectionsExceeded('Max connections exceeded, timed out '
-                                     'attempting to connect.')
+        raise MaxConnectionsExceeded(
+            'Max connections exceeded, timed out ' 'attempting to connect.'
+        )
 
     def _connect(self):
         while True:
@@ -151,7 +166,8 @@ class PooledDatabase(object):
 
         if conn is None:
             if self._max_connections and (
-                    len(self._in_use) >= self._max_connections):
+                len(self._in_use) >= self._max_connections
+            ):
                 raise MaxConnectionsExceeded('Exceeded maximum connections.')
             conn = super(PooledDatabase, self)._connect()
             ts = time.time() - random.random() / 1000
@@ -277,14 +293,19 @@ class _PooledPostgresqlDatabase(PooledDatabase):
             conn.rollback()
         return True
 
+
 class PooledPostgresqlDatabase(_PooledPostgresqlDatabase, PostgresqlDatabase):
     pass
+
 
 try:
     from playhouse.postgres_ext import PostgresqlExtDatabase
 
-    class PooledPostgresqlExtDatabase(_PooledPostgresqlDatabase, PostgresqlExtDatabase):
+    class PooledPostgresqlExtDatabase(
+        _PooledPostgresqlDatabase, PostgresqlExtDatabase
+    ):
         pass
+
 except ImportError:
     PooledPostgresqlExtDatabase = None
 
@@ -298,14 +319,17 @@ class _PooledSqliteDatabase(PooledDatabase):
         else:
             return False
 
+
 class PooledSqliteDatabase(_PooledSqliteDatabase, SqliteDatabase):
     pass
+
 
 try:
     from playhouse.sqlite_ext import SqliteExtDatabase
 
     class PooledSqliteExtDatabase(_PooledSqliteDatabase, SqliteExtDatabase):
         pass
+
 except ImportError:
     PooledSqliteExtDatabase = None
 
@@ -314,5 +338,6 @@ try:
 
     class PooledCSqliteExtDatabase(_PooledSqliteDatabase, CSqliteExtDatabase):
         pass
+
 except ImportError:
     PooledCSqliteExtDatabase = None

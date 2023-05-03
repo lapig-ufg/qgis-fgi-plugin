@@ -1,8 +1,8 @@
 import logging
 import weakref
+from threading import Event, Thread
 from threading import local as thread_local
-from threading import Event
-from threading import Thread
+
 try:
     from Queue import Queue
 except ImportError:
@@ -20,23 +20,34 @@ except ImportError:
 from peewee import SENTINEL
 from playhouse.sqlite_ext import SqliteExtDatabase
 
-
 logger = logging.getLogger('peewee.sqliteq')
 
 
 class ResultTimeout(Exception):
     pass
 
+
 class WriterPaused(Exception):
     pass
+
 
 class ShutdownException(Exception):
     pass
 
 
 class AsyncCursor(object):
-    __slots__ = ('sql', 'params', 'commit', 'timeout',
-                 '_event', '_cursor', '_exc', '_idx', '_rows', '_ready')
+    __slots__ = (
+        'sql',
+        'params',
+        'commit',
+        'timeout',
+        '_event',
+        '_cursor',
+        '_exc',
+        '_idx',
+        '_rows',
+        '_ready',
+    )
 
     def __init__(self, event, sql, params, commit, timeout):
         self._event = event
@@ -80,6 +91,7 @@ class AsyncCursor(object):
         else:
             self._idx += 1
             return obj
+
     __next__ = next
 
     @property
@@ -111,6 +123,7 @@ class AsyncCursor(object):
             return next(self)
         except StopIteration:
             return None
+
 
 SHUTDOWN = StopIteration
 PAUSE = object()
@@ -185,14 +198,24 @@ class Writer(object):
 
 
 class SqliteQueueDatabase(SqliteExtDatabase):
-    WAL_MODE_ERROR_MESSAGE = ('SQLite must be configured to use the WAL '
-                              'journal mode when using this feature. WAL mode '
-                              'allows one or more readers to continue reading '
-                              'while another connection writes to the '
-                              'database.')
+    WAL_MODE_ERROR_MESSAGE = (
+        'SQLite must be configured to use the WAL '
+        'journal mode when using this feature. WAL mode '
+        'allows one or more readers to continue reading '
+        'while another connection writes to the '
+        'database.'
+    )
 
-    def __init__(self, database, use_gevent=False, autostart=True,
-                 queue_max_size=None, results_timeout=None, *args, **kwargs):
+    def __init__(
+        self,
+        database,
+        use_gevent=False,
+        autostart=True,
+        queue_max_size=None,
+        results_timeout=None,
+        *args,
+        **kwargs
+    ):
         kwargs['check_same_thread'] = False
 
         # Ensure that journal_mode is WAL. This value is passed to the parent
@@ -253,7 +276,8 @@ class SqliteQueueDatabase(SqliteExtDatabase):
             sql=sql,
             params=params,
             commit=commit,
-            timeout=self._results_timeout if timeout is None else timeout)
+            timeout=self._results_timeout if timeout is None else timeout,
+        )
         self._write_queue.put(cursor)
         return cursor
 
@@ -261,6 +285,7 @@ class SqliteQueueDatabase(SqliteExtDatabase):
         with self._lock:
             if not self._is_stopped:
                 return False
+
             def run():
                 writer = Writer(self, self._write_queue)
                 writer.run()
@@ -294,6 +319,7 @@ class SqliteQueueDatabase(SqliteExtDatabase):
 
     def __unsupported__(self, *args, **kwargs):
         raise ValueError('This method is not supported by %r.' % type(self))
+
     atomic = transaction = savepoint = __unsupported__
 
 
@@ -303,7 +329,8 @@ class ThreadHelper(object):
     def __init__(self, queue_max_size=None):
         self.queue_max_size = queue_max_size
 
-    def event(self): return Event()
+    def event(self):
+        return Event()
 
     def queue(self, max_size=None):
         max_size = max_size if max_size is not None else self.queue_max_size
@@ -318,7 +345,8 @@ class ThreadHelper(object):
 class GreenletHelper(ThreadHelper):
     __slots__ = ()
 
-    def event(self): return GEvent()
+    def event(self):
+        return GEvent()
 
     def queue(self, max_size=None):
         max_size = max_size if max_size is not None else self.queue_max_size
@@ -328,4 +356,5 @@ class GreenletHelper(ThreadHelper):
         def wrap(*a, **k):
             gevent.sleep()
             return fn(*a, **k)
+
         return GThread(wrap, *args, **kwargs)

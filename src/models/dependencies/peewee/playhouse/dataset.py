@@ -1,27 +1,31 @@
 import csv
 import datetime
-from decimal import Decimal
 import json
 import operator
+from decimal import Decimal
+
 try:
     from urlparse import urlparse
 except ImportError:
     from urllib.parse import urlparse
+
 import sys
 import uuid
 
 from peewee import *
 from playhouse.db_url import connect
-from playhouse.migrate import migrate
-from playhouse.migrate import SchemaMigrator
+from playhouse.migrate import SchemaMigrator, migrate
 from playhouse.reflection import Introspector
 
 if sys.version_info[0] == 3:
     basestring = str
     from functools import reduce
+
     def open_file(f, mode, encoding='utf8'):
         return open(f, mode, encoding=encoding)
+
 else:
+
     def open_file(f, mode, encoding='utf8'):
         return open(f, mode)
 
@@ -50,12 +54,14 @@ class DataSet(object):
             skip_invalid=True,
             literal_column_names=True,
             include_views=self._include_views,
-            **kwargs)
+            **kwargs
+        )
         self._migrator = SchemaMigrator.from_database(self._database)
 
         class BaseModel(Model):
             class Meta:
                 database = self._database
+
         self._base_model = BaseModel
         self._export_formats = self.get_export_formats()
         self._import_formats = self.get_import_formats()
@@ -64,16 +70,10 @@ class DataSet(object):
         return '<DataSet: %s>' % self._database_path
 
     def get_export_formats(self):
-        return {
-            'csv': CSVExporter,
-            'json': JSONExporter,
-            'tsv': TSVExporter}
+        return {'csv': CSVExporter, 'json': JSONExporter, 'tsv': TSVExporter}
 
     def get_import_formats(self):
-        return {
-            'csv': CSVImporter,
-            'json': JSONImporter,
-            'tsv': TSVImporter}
+        return {'csv': CSVImporter, 'json': JSONImporter, 'tsv': TSVImporter}
 
     def __getitem__(self, table):
         if table not in self._models and table in self.tables:
@@ -105,9 +105,12 @@ class DataSet(object):
             dependencies = [table]
             if table in self._models:
                 model_class = self._models[table]
-                dependencies.extend([
-                    related._meta.table_name for _, related, _ in
-                    model_class._meta.model_graph()])
+                dependencies.extend(
+                    [
+                        related._meta.table_name
+                        for _, related, _ in model_class._meta.model_graph()
+                    ]
+                )
             else:
                 dependencies.extend(self.get_table_dependencies(table))
         else:
@@ -117,7 +120,8 @@ class DataSet(object):
             skip_invalid=True,
             table_names=dependencies,
             literal_column_names=True,
-            include_views=self._include_views)
+            include_views=self._include_views,
+        )
         self._models.update(updated)
 
     def get_table_dependencies(self, table):
@@ -149,18 +153,30 @@ class DataSet(object):
 
     def _check_arguments(self, filename, file_obj, format, format_dict):
         if filename and file_obj:
-            raise ValueError('file is over-specified. Please use either '
-                             'filename or file_obj, but not both.')
+            raise ValueError(
+                'file is over-specified. Please use either '
+                'filename or file_obj, but not both.'
+            )
         if not filename and not file_obj:
-            raise ValueError('A filename or file-like object must be '
-                             'specified.')
+            raise ValueError(
+                'A filename or file-like object must be ' 'specified.'
+            )
         if format not in format_dict:
             valid_formats = ', '.join(sorted(format_dict.keys()))
-            raise ValueError('Unsupported format "%s". Use one of %s.' % (
-                format, valid_formats))
+            raise ValueError(
+                'Unsupported format "%s". Use one of %s.'
+                % (format, valid_formats)
+            )
 
-    def freeze(self, query, format='csv', filename=None, file_obj=None,
-               encoding='utf8', **kwargs):
+    def freeze(
+        self,
+        query,
+        format='csv',
+        filename=None,
+        file_obj=None,
+        encoding='utf8',
+        **kwargs
+    ):
         self._check_arguments(filename, file_obj, format, self._export_formats)
         if filename:
             file_obj = open_file(filename, 'w', encoding)
@@ -171,8 +187,16 @@ class DataSet(object):
         if filename:
             file_obj.close()
 
-    def thaw(self, table, format='csv', filename=None, file_obj=None,
-             strict=False, encoding='utf8', **kwargs):
+    def thaw(
+        self,
+        table,
+        format='csv',
+        filename=None,
+        file_obj=None,
+        strict=False,
+        encoding='utf8',
+        **kwargs
+    ):
         self._check_arguments(filename, file_obj, format, self._export_formats)
         if filename:
             file_obj = open_file(filename, 'r', encoding)
@@ -211,10 +235,10 @@ class Table(object):
     def _create_model(self):
         class Meta:
             table_name = self.name
+
         return type(
-            str(self.name),
-            (self.dataset._base_model,),
-            {'Meta': Meta})
+            str(self.name), (self.dataset._base_model,), {'Meta': Meta}
+        )
 
     def create_index(self, columns, unique=False):
         index = ModelIndex(self.model_class, columns, unique=unique)
@@ -248,7 +272,8 @@ class Table(object):
                 field_class = self._guess_field_type(data[key])
                 field = field_class(null=True)
                 operations.append(
-                    self.dataset._migrator.add_column(self.name, key, field))
+                    self.dataset._migrator.add_column(self.name, key, field)
+                )
                 field.bind(self.model_class, key)
 
             migrate(*operations)
@@ -287,7 +312,8 @@ class Table(object):
         if filters:
             expressions = [
                 (self.model_class._meta.fields[column] == value)
-                for column, value in filters.items()]
+                for column, value in filters.items()
+            ]
             query = query.where(reduce(conjunction, expressions))
         return query
 
@@ -299,9 +325,8 @@ class Table(object):
                 filters[column] = data.pop(column)
 
         return self._apply_where(
-            self.model_class.update(**data),
-            filters,
-            conjunction).execute()
+            self.model_class.update(**data), filters, conjunction
+        ).execute()
 
     def _query(self, **query):
         return self._apply_where(self.model_class.select(), query)
@@ -345,25 +370,27 @@ class JSONExporter(Exporter):
         datetime_types = (datetime.datetime, datetime.date, datetime.time)
 
         if self.iso8601_datetimes:
+
             def default(o):
                 if isinstance(o, datetime_types):
                     return o.isoformat()
                 elif isinstance(o, (Decimal, uuid.UUID)):
                     return str(o)
                 raise TypeError('Unable to serialize %r as JSON' % o)
+
         else:
+
             def default(o):
                 if isinstance(o, datetime_types + (Decimal, uuid.UUID)):
                     return str(o)
                 raise TypeError('Unable to serialize %r as JSON' % o)
+
         return default
 
     def export(self, file_obj, **kwargs):
         json.dump(
-            list(self.query),
-            file_obj,
-            default=self._make_default(),
-            **kwargs)
+            list(self.query), file_obj, default=self._make_default(), **kwargs
+        )
 
 
 class CSVExporter(Exporter):

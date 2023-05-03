@@ -1,107 +1,155 @@
 import datetime
 import time
-import json
-from sys import platform
-from os import path, remove
-from glob import glob
-import requests as req
-from requests.utils import requote_uri
+import unicodedata
 import urllib
-from PyQt5.QtWidgets import QPushButton
-from qgis.PyQt.QtCore import QVariant
-from PyQt5 import QtCore
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QMessageBox, QApplication, QScrollArea, QListWidgetItem
-from qgis.PyQt.QtGui import QColor, QCursor, QPixmap
-from qgis.core import Qgis, QgsCoordinateTransform, QgsProject, QgsVectorLayer, QgsSymbol, QgsRuleBasedRenderer, QgsFillSymbol, QgsCoordinateReferenceSystem, QgsField, QgsFeatureRequest
-from qgis import processing
+from os import path, remove
 
-from .tools import ToolPointer, ClipboardPointer
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import QPushButton
+from qgis import processing
+from qgis.core import (
+    Qgis,
+    QgsApplication,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsFeatureRequest,
+    QgsField,
+    QgsFillSymbol,
+    QgsProject,
+    QgsRuleBasedRenderer,
+    QgsVectorLayer,
+)
+from qgis.PyQt.QtCore import Qt, QVariant
+from qgis.PyQt.QtGui import QColor, QCursor, QPixmap
+from qgis.PyQt.QtWidgets import QApplication, QListWidgetItem, QMessageBox
+from requests.utils import requote_uri
+
 from .export import Writer
 from .models.dependencies.xmltodict import xmltodict
-import unicodedata
+from .tools import ClipboardPointer, ToolPointer
+
+
 class InspectionController:
     """QGIS Plugin Implementation."""
 
     def __init__(self, parent):
         self.parent = parent
-        self.selectedClassObject = None
-        self.livestockLayer = None
-        self.inspectionStartDatetime = None
-        self.tileGeom = None
-        self.bingThumUrl = None
+        self.selected_class_object = None
+        self.livestock_layer = None
+        self.inspection_start_datetime = None
+        self.tile_geom = None
+        self.bing_thumb_url = None
         self.inspecting = False
-        self.parent.dockwidget.btnNext.clicked.connect(self.nextTile)
-        # self.parent.dockwidget.btnBack.clicked.connect(self.backtTile)
-        self.parent.dockwidget.btnPointDate.clicked.connect(self.getPoint)
-        
-    def dialog(self, title, text, info, type):
-        obType = None
+        self.parent.dockwidget.btnNext.clicked.connect(self.next_tile)
+        self.parent.dockwidget.btnPointDate.clicked.connect(self.get_point)
 
-        if(type == 'Critical'):
-            obType = QMessageBox.Critical
-        elif(type == 'Information'):
-            obType = QMessageBox.Information
-        elif(type == 'Question'):
-            obType = QMessageBox.Question
-        elif(type == 'Warning'):
-            obType = QMessageBox.Warning
-            
+    def dialog(self, title, text, info, type):
+        ob_type = None
         msg = QMessageBox()
-        msg.setIcon(obType)
+
+        if type == 'Critical':
+            ob_type = QMessageBox.Critical
+            msg.setStandardButtons(QMessageBox.No | QMessageBox.Yes)
+        elif type == 'Question':
+            ob_type = QMessageBox.Question
+            msg.setStandardButtons(QMessageBox.No | QMessageBox.Yes)
+        elif type == 'Warning':
+            ob_type = QMessageBox.Warning
+            msg.setStandardButtons(QMessageBox.Ok)
+        elif type == 'Information':
+            ob_type = QMessageBox.Information
+        else:
+            ob_type = QMessageBox.Information
+
+        msg.setIcon(ob_type)
         msg.setText(text)
 
-        if(info):
+        if info:
             msg.setInformativeText(info)
 
         msg.setWindowTitle(title)
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+
         return msg.exec_()
 
-    def getWidgetObject(self, widget):
-        widgetObject = None
+    def get_widget_object(self, widget):
+        widget_object = None
 
-        if self.parent.getConfig('imageSource') == 'BING':
-            widgetObject = getattr(self.parent.dockwidget, f'{widget}Bing')
+        if self.parent.get_config('imageSource') == 'BING':
+            widget_object = getattr(self.parent.dockwidget, f'{widget}Bing')
         else:
-            widgetObject = getattr(self.parent.dockwidget, f'{widget}Google')
+            widget_object = getattr(self.parent.dockwidget, f'{widget}Google')
 
-        return widgetObject
+        return widget_object
 
-    def getPoint(self):
+    def get_point(self):
         canvas = self.parent.iface.mapCanvas()
         tool = ClipboardPointer(self.parent.iface, self)
         canvas.setMapTool(tool)
-       
+
     def normalize(self, text):
         text = (
             unicodedata.normalize('NFD', text)
             .encode('ascii', 'ignore')
             .decode('utf-8')
         )
-        return str(text).lower().replace(" ", "_")
+        return str(text).lower().replace(' ', '_')
 
-    def setFeatureColor(self):
+    def set_feature_color(self):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         # symbol = QgsSymbol.defaultSymbol(self.parent.currentPixelsLayer.geometryType())
-        symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'black','width_border':'0.1'})
+        symbol = QgsFillSymbol.createSimple(
+            {
+                'color': '0,0,0,0',
+                'color_border': 'black',
+                'width_border': '0.1',
+            }
+        )
         renderer = QgsRuleBasedRenderer(symbol)
         rules = []
-              
-        
+
         for type in self.parent.campaignsConfig['classes']:
-            rgb = type['rgb'].split(",")
-            if self.parent.getConfig('imageSource') == 'BING':
-                rules.append([type['class'], f""""bing_class" = '{type['class']}'""", QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3]))])
+            rgb = type['rgb'].split(',')
+            if self.parent.get_config('imageSource') == 'BING':
+                rules.append(
+                    [
+                        type['class'],
+                        f""""bing_class" = '{type['class']}'""",
+                        QColor(
+                            int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3])
+                        ),
+                    ]
+                )
             else:
-                rules.append([type['class'], f""""google_class" = '{type['class']}'""", QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3]))])
+                rules.append(
+                    [
+                        type['class'],
+                        f""""google_class" = '{type['class']}'""",
+                        QColor(
+                            int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3])
+                        ),
+                    ]
+                )
 
-        if self.parent.getConfig('imageSource') == 'BING':
-            rules.append(["NOT DEFINED", f""""bing_class" is NULL""", QColor(0, 0, 255, 0)])
+        if self.parent.get_config('imageSource') == 'BING':
+            rules.append(
+                [
+                    'NOT DEFINED',
+                    f""""bing_class" is NULL""",
+                    QColor(0, 0, 255, 0),
+                ]
+            )
         else:
-            rules.append(["NOT DEFINED", f""""google_class" is NULL""", QColor(0, 0, 255, 0)])
+            rules.append(
+                [
+                    'NOT DEFINED',
+                    f""""google_class" is NULL""",
+                    QColor(0, 0, 255, 0),
+                ]
+            )
 
-        def rule_based_symbology(layer, renderer, label, expression, symbol, color):
+        def rule_based_symbology(
+            layer, renderer, label, expression, symbol, color
+        ):
             root_rule = renderer.rootRule()
             rule = root_rule.children()[0].clone()
             rule.setLabel(label)
@@ -112,569 +160,831 @@ class InspectionController:
             layer.triggerRepaint()
 
         for rule in rules:
-            rule_based_symbology(self.parent.currentPixelsLayer, renderer, rule[0], rule[1], symbol, rule[2])
+            rule_based_symbology(
+                self.parent.currentPixelsLayer,
+                renderer,
+                rule[0],
+                rule[1],
+                symbol,
+                rule[2],
+            )
 
         renderer.rootRule().removeChildAt(0)
-        self.parent.iface.layerTreeView().refreshLayerSymbology(self.parent.currentPixelsLayer.id())
+        self.parent.iface.layerTreeView().refreshLayerSymbology(
+            self.parent.currentPixelsLayer.id()
+        )
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
-    def dateIsValid(self, date_text):
-            try:
-                date = datetime.datetime.strptime(date_text, '%Y-%m-%d')
-                return True
-            except ValueError:
-               return False
+    def date_is_valid(self, date_text):
+        try:
+            date = datetime.datetime.strptime(date_text, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False
 
-    def getFeature(self, featureId):
+    def get_feature(self, featureId):
         feature = None
-        allFeatures = self.parent.currentPixelsLayer.getFeatures();
-        for feat in allFeatures:
-            if(feat.id() == featureId): 
+        all_features = self.parent.currentPixelsLayer.getFeatures()
+        for feat in all_features:
+            if feat.id() == featureId:
                 feature = feat
         return feature
 
-    def removePoints(self, selectedFeatures):
+    def remove_points(self, selected_features):
         request = QgsFeatureRequest()
-        request.setFilterFids(selectedFeatures)
-        allFeatures = list(self.livestockLayer.getFeatures(request));
-    
-        self.livestockLayer.startEditing()
-      
-        for feature in allFeatures:
-            self.livestockLayer.deleteFeature(feature.id())
-         
-        self.livestockLayer.commitChanges()
+        request.setFilterFids(selected_features)
+        all_features = list(self.livestock_layer.getFeatures(request))
+
+        self.livestock_layer.startEditing()
+
+        for feature in all_features:
+            self.livestock_layer.deleteFeature(feature.id())
+
+        self.livestock_layer.commitChanges()
         canvas = self.parent.iface.mapCanvas()
-        tool = ToolPointer(self.parent.iface, self.livestockLayer, self)
+        tool = ToolPointer(self.parent.iface, self.livestock_layer, self)
         canvas.setMapTool(tool)
 
-    def addClassToFeature(self, selectedFeatures):
+    def add_class_to_feature(self, selected_features):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         request = QgsFeatureRequest()
-        request.setFilterFids(selectedFeatures)
+        request.setFilterFids(selected_features)
 
         if self.parent.selectedClass is None:
-           self.parent.iface.mapCanvas().setSelectionColor( QColor(255, 255, 255, 0) )
+            self.parent.iface.mapCanvas().setSelectionColor(
+                QColor(255, 255, 255, 0)
+            )
 
-        else: 
-            rgb = self.selectedClassObject['rgb'].split(",")
-            self.parent.iface.mapCanvas().setSelectionColor( QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3])) )
+        else:
+            rgb = self.selected_class_object['rgb'].split(',')
+            self.parent.iface.mapCanvas().setSelectionColor(
+                QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]), int(rgb[3]))
+            )
 
-        if(self.parent.currentPixelsLayer):
-        
-            allFeatures = list(self.parent.currentPixelsLayer.getFeatures(request));
-            google_class_idx = self.parent.currentPixelsLayer.fields().indexOf('google_class')
-            google_image_start_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_start_date')
-            google_image_end_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_end_date')
-            
-            bing_class_idx = self.parent.currentPixelsLayer.fields().indexOf('bing_class')
-            bing_image_start_date_idx = self.parent.currentPixelsLayer.fields().indexOf('bing_image_start_date')
-            bing_image_end_date_idx = self.parent.currentPixelsLayer.fields().indexOf('bing_image_end_date')
-     
-            imageDate = self.parent.dockwidget.imageDate.date().toString('yyyy-MM-dd')
+        if self.parent.currentPixelsLayer:
 
-            imageBindStartDate = self.parent.dockwidget.bingStartDate.date().toString('yyyy-MM-dd')
-            imageBindEndDate  = self.parent.dockwidget.bingEndDate.date().toString('yyyy-MM-dd')
+            all_features = list(
+                self.parent.currentPixelsLayer.getFeatures(request)
+            )
+            google_class_idx = self.parent.currentPixelsLayer.fields().indexOf(
+                'google_class'
+            )
+            google_image_start_date_idx = (
+                self.parent.currentPixelsLayer.fields().indexOf(
+                    'google_image_start_date'
+                )
+            )
+            google_image_end_date_idx = (
+                self.parent.currentPixelsLayer.fields().indexOf(
+                    'google_image_end_date'
+                )
+            )
 
-            if self.parent.getConfig('imageSource') == 'BING':
-                if not self.dateIsValid(imageBindStartDate) and not self.dateIsValid(imageBindEndDate):
-                    imageDate = None
-                    self.parent.iface.messageBar().pushMessage("", "The image date of Bing valid is required!", level=Qgis.Critical, duration=5)
+            bing_class_idx = self.parent.currentPixelsLayer.fields().indexOf(
+                'bing_class'
+            )
+            bing_image_start_date_idx = (
+                self.parent.currentPixelsLayer.fields().indexOf(
+                    'bing_image_start_date'
+                )
+            )
+            bing_image_end_date_idx = (
+                self.parent.currentPixelsLayer.fields().indexOf(
+                    'bing_image_end_date'
+                )
+            )
+
+            image_date = self.parent.dockwidget.imageDate.date().toString(
+                'yyyy-MM-dd'
+            )
+
+            image_bind_start_date = (
+                self.parent.dockwidget.bingStartDate.date().toString(
+                    'yyyy-MM-dd'
+                )
+            )
+            image_bind_end_date = (
+                self.parent.dockwidget.bingEndDate.date().toString(
+                    'yyyy-MM-dd'
+                )
+            )
+
+            if self.parent.get_config('imageSource') == 'BING':
+                if not self.date_is_valid(
+                    image_bind_start_date
+                ) and not self.date_is_valid(image_bind_end_date):
+                    image_date = None
+                    self.parent.iface.messageBar().pushMessage(
+                        '',
+                        'The image date of Bing valid is required!',
+                        level=Qgis.Critical,
+                        duration=5,
+                    )
                     return
             else:
-                if not self.dateIsValid(imageDate):
-                    imageDate = None
-                    self.parent.iface.messageBar().pushMessage("", "The image date of Google valid is required!", level=Qgis.Critical, duration=5)
+                if not self.date_is_valid(image_date):
+                    image_date = None
+                    self.parent.iface.messageBar().pushMessage(
+                        '',
+                        'The image date of Google valid is required!',
+                        level=Qgis.Critical,
+                        duration=5,
+                    )
                     return
 
-  
             self.parent.currentPixelsLayer.startEditing()
-            
-            if not self.parent.selectedClass:
-                imageDate = None  
 
-            for feature in allFeatures:
-                if self.parent.getConfig('imageSource') == 'BING':
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), bing_class_idx, self.parent.selectedClass)
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), bing_image_start_date_idx, imageBindStartDate)
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), bing_image_end_date_idx, imageBindEndDate)
+            if not self.parent.selectedClass:
+                image_date = None
+
+            for feature in all_features:
+                if self.parent.get_config('imageSource') == 'BING':
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(), bing_class_idx, self.parent.selectedClass
+                    )
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(),
+                        bing_image_start_date_idx,
+                        image_bind_start_date,
+                    )
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(),
+                        bing_image_end_date_idx,
+                        image_bind_end_date,
+                    )
                 else:
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), google_class_idx, self.parent.selectedClass)
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), google_image_start_date_idx, imageDate)
-                    self.parent.currentPixelsLayer.changeAttributeValue(feature.id(), google_image_end_date_idx, imageDate)
-           
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(),
+                        google_class_idx,
+                        self.parent.selectedClass,
+                    )
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(), google_image_start_date_idx, image_date
+                    )
+                    self.parent.currentPixelsLayer.changeAttributeValue(
+                        feature.id(), google_image_end_date_idx, image_date
+                    )
 
             self.parent.currentPixelsLayer.commitChanges()
-            self.setFeatureColor()
+            self.set_feature_color()
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
         else:
-           self.parent.iface.messageBar().pushMessage("", "Something went wrong with the pixels layer, Please close the plugin and try again", level=Qgis.Critical, duration=10)
-                  
-    def setDefaultClass(self, layer):
-        imageDate = self.parent.dockwidget.imageDate.date().toString('yyyy-MM-dd')
-        if not self.dateIsValid(imageDate):
-            imageDate = None
+            self.parent.iface.messageBar().pushMessage(
+                '',
+                'Something went wrong with the pixels layer, Please close the plugin and try again',
+                level=Qgis.Critical,
+                duration=10,
+            )
+
+    def set_default_class(self, layer):
+        image_date = self.parent.dockwidget.imageDate.date().toString(
+            'yyyy-MM-dd'
+        )
+        if not self.date_is_valid(image_date):
+            image_date = None
 
         layer.startEditing()
-        allFeatures = layer.getFeatures();
+        all_features = layer.getFeatures()
         google_class_idx = layer.fields().indexOf('google_class')
-        google_image_start_date_idx = layer.fields().indexOf('google_image_start_date')
-        google_image_end_date_idx = layer.fields().indexOf('google_image_end_date')
+        google_image_start_date_idx = layer.fields().indexOf(
+            'google_image_start_date'
+        )
+        google_image_end_date_idx = layer.fields().indexOf(
+            'google_image_end_date'
+        )
 
         bing_class_idx = layer.fields().indexOf('bing_class')
-        bing_image_start_date_idx = layer.fields().indexOf('bing_image_start_date')
+        bing_image_start_date_idx = layer.fields().indexOf(
+            'bing_image_start_date'
+        )
         bing_image_end_date_idx = layer.fields().indexOf('bing_image_end_date')
 
-        imageDate = self.parent.dockwidget.imageDate.date().toString('yyyy-MM-dd')
+        image_date = self.parent.dockwidget.imageDate.date().toString(
+            'yyyy-MM-dd'
+        )
 
-        imageBindStartDate = self.parent.dockwidget.bingStartDate.date().toString('yyyy-MM-dd')
-        imageBindEndDate  = self.parent.dockwidget.bingEndDate.date().toString('yyyy-MM-dd')
+        image_bind_start_date = (
+            self.parent.dockwidget.bingStartDate.date().toString('yyyy-MM-dd')
+        )
+        image_bind_end_date = (
+            self.parent.dockwidget.bingEndDate.date().toString('yyyy-MM-dd')
+        )
 
-        for feature in allFeatures:
-            if self.parent.getConfig('imageSource') == 'BING':
-                layer.changeAttributeValue(feature.id(), bing_class_idx, self.parent.selectedClass)
-                layer.changeAttributeValue(feature.id(), bing_image_start_date_idx, imageBindStartDate)
-                layer.changeAttributeValue(feature.id(), bing_image_end_date_idx, imageBindEndDate) 
-            else: 
+        for feature in all_features:
+            if self.parent.get_config('imageSource') == 'BING':
+                layer.changeAttributeValue(
+                    feature.id(), bing_class_idx, self.parent.selectedClass
+                )
+                layer.changeAttributeValue(
+                    feature.id(),
+                    bing_image_start_date_idx,
+                    image_bind_start_date,
+                )
+                layer.changeAttributeValue(
+                    feature.id(), bing_image_end_date_idx, image_bind_end_date
+                )
+            else:
 
-                layer.changeAttributeValue(feature.id(), google_class_idx, self.parent.selectedClass)
-                layer.changeAttributeValue(feature.id(), google_image_start_date_idx, imageDate)
-                layer.changeAttributeValue(feature.id(), google_image_end_date_idx, imageDate)
+                layer.changeAttributeValue(
+                    feature.id(), google_class_idx, self.parent.selectedClass
+                )
+                layer.changeAttributeValue(
+                    feature.id(), google_image_start_date_idx, image_date
+                )
+                layer.changeAttributeValue(
+                    feature.id(), google_image_end_date_idx, image_date
+                )
 
         layer.commitChanges()
 
-    def loadThumbnailBing(self, url): 
+    def load_thumbnail_bing(self, url):
         data = urllib.request.urlopen(url).read()
         pixmap = QPixmap()
         pixmap.loadFromData(data)
-        self.getWidgetObject('thum').setPixmap(pixmap)
+        self.get_widget_object('thum').setPixmap(pixmap)
 
-    def loadTileMetadataFromBing(self, geom):
-        sourceCrs = QgsCoordinateReferenceSystem(3857)
-        destCrs = QgsCoordinateReferenceSystem(4326)
+    def load_tile_metadata_from_bing(self, geom):
+        source_crs = QgsCoordinateReferenceSystem(3857)
+        dest_crs = QgsCoordinateReferenceSystem(4326)
 
-        tr = QgsCoordinateTransform(sourceCrs, destCrs, QgsProject.instance())
+        tr = QgsCoordinateTransform(
+            source_crs, dest_crs, QgsProject.instance()
+        )
         point = tr.transform(geom.centroid().asPoint()).toString().split(',')
 
         lat = point[1].replace(' ', '')
         lon = point[0].replace(' ', '')
-       
-        
-        url = requote_uri(f"https://dev.virtualearth.net/REST/V1/Imagery/Metadata/Aerial/{lat},{lon}?centerPoint={lat},{lon}&zl=15&o=xml&key=AlXOiUXLu-4TbJpayRnVBURzY6RNXLLlK-STT2JIzBrkbXe0-53aSfaQXfDA7rt6")
+
+        url = requote_uri(
+            f'https://dev.virtualearth.net/REST/V1/Imagery/Metadata/Aerial/{lat},{lon}?centerPoint={lat},{lon}&zl=15&o=xml&key=AlXOiUXLu-4TbJpayRnVBURzY6RNXLLlK-STT2JIzBrkbXe0-53aSfaQXfDA7rt6'
+        )
         data = urllib.request.urlopen(url).read()
-        
-        metadataBing = xmltodict.parse(data)
-        metadataBing = metadataBing.pop('Response').get('ResourceSets').get('ResourceSet').get('Resources').get('ImageryMetadata')
 
-        start_date = metadataBing.get('VintageStart')
-        end_date = metadataBing.get('VintageEnd')
+        metadata_bing = xmltodict.parse(data)
+        metadata_bing = (
+            metadata_bing.pop('Response')
+            .get('ResourceSets')
+            .get('ResourceSet')
+            .get('Resources')
+            .get('ImageryMetadata')
+        )
 
-        dateStart = datetime.datetime.strptime(start_date, "%Y-%m-%d")
-        dateEnd = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+        start_date = metadata_bing.get('VintageStart')
+        end_date = metadata_bing.get('VintageEnd')
 
-        period = dateEnd - dateStart
+        date_start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        date_end = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
-        self.loadThumbnailBing(metadataBing.get('ImageUrl'))
-        self.bingThumUrl = metadataBing.get('ImageUrl')
+        period = date_end - date_start
 
-        self.parent.dockwidget.bingStartDate.setDateTime(dateStart)
-        self.parent.dockwidget.bingEndDate.setDateTime(dateEnd)
+        self.load_thumbnail_bing(metadata_bing.get('ImageUrl'))
+        self.bing_thumb_url = metadata_bing.get('ImageUrl')
+
+        self.parent.dockwidget.bingStartDate.setDateTime(date_start)
+        self.parent.dockwidget.bingEndDate.setDateTime(date_end)
 
         self.parent.dockwidget.bingPeriod.setText(str(period.days))
 
- 
-    def createGridPixels(self, tile):
-        self.tileGeom = None
+    def create_grid_pixels(self, tile):
+        self.tile_geom = None
         grid = None
         out = None
         self.parent.currentPixelsLayer = None
-        self.inspectionStartDatetime = datetime.datetime.now()
-        name = self.parent.getConfig('interpreterName')
+        self.inspection_start_datetime = datetime.datetime.now()
+        name = self.parent.get_config('interpreterName')
         self.inspecting = True
 
-        if name is "":
+        if name is '':
             name = self.parent.dockwidget.interpreterName.text()
-        
+
         self.interpreterName = self.normalize(name)
-        
-        gridOutput = path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg")
-        prevTile = self.parent.tiles[self.parent.currentTileIndex - 1] 
+
+        grid_output = path.normpath(
+            f'{self.parent.workDir}/{tile[0]}_grid.gpkg'
+        )
+        prev_tile = self.parent.tiles[self.parent.currentTileIndex - 1]
 
         try:
-            if (path.exists(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg"))):
-                remove(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg"))
+            if path.exists(
+                path.normpath(
+                    f'{self.parent.workDir}/{prev_tile[0]}_grid.gpkg'
+                )
+            ):
+                remove(
+                    path.normpath(
+                        f'{self.parent.workDir}/{prev_tile[0]}_grid.gpkg'
+                    )
+                )
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg-shm"))):
-                remove(path.normpath(f"{self.parent.workDir}/{prevTile[0]}_grid.gpkg-shm"))
+            if path.exists(
+                path.normpath(
+                    f'{self.parent.workDir}/{prev_tile[0]}_grid.gpkg-shm'
+                )
+            ):
+                remove(
+                    path.normpath(
+                        f'{self.parent.workDir}/{prev_tile[0]}_grid.gpkg-shm'
+                    )
+                )
 
-            if (path.exists(path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg-wal"))):
-                 remove(path.normpath(f"{self.parent.workDir}/{tile[0]}_grid.gpkg-wal"))
+            if path.exists(
+                path.normpath(f'{self.parent.workDir}/{tile[0]}_grid.gpkg-wal')
+            ):
+                remove(
+                    path.normpath(
+                        f'{self.parent.workDir}/{tile[0]}_grid.gpkg-wal'
+                    )
+                )
         except Exception:
-             pass
+            pass
 
         request = QgsFeatureRequest().setFilterFids([tile[0]])
-        tilesFeatures = list(self.parent.tilesLayer.getFeatures(request))
-        geom = tilesFeatures[0].geometry()
-        self.tileGeom = geom
+        tiles_features = list(self.parent.tilesLayer.getFeatures(request))
+        geom = tiles_features[0].geometry()
+        self.tile_geom = geom
 
-        self.loadTileMetadataFromBing(geom)
+        self.load_tile_metadata_from_bing(geom)
 
-        if self.parent.getConfig('imageSource') == 'BING':
-            self.parent.loadClasses()
+        if self.parent.get_config('imageSource') == 'BING':
+            self.parent.load_classes()
             self.parent.dockwidget.btnFinishBing.setVisible(True)
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerBing.id()).setItemVisibilityChecked(True)
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerBing.id()
+            ).setItemVisibilityChecked(True)
         else:
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerGoogle.id()).setItemVisibilityChecked(True)
-            
-         
-        cellsize = 10 #Cell Size in EPSG:3857 will be 10 x 10 meters
-        # extent = str(tile[2])+ ',' + str(tile[4])+ ',' +str(tile[3])+ ',' +str(tile[5])  
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerGoogle.id()
+            ).setItemVisibilityChecked(True)
+
+        cellsize = 10  # Cell Size in EPSG:3857 will be 10 x 10 meters
         extent = geom.boundingBox()
-        params = {'TYPE':2,
+        params = {
+            'TYPE': 2,
             'EXTENT': extent,
-            'HSPACING':cellsize,
-            'VSPACING':cellsize,
-            'HOVERLAY':0,
-            'VOVERLAY':0,
-            'CRS':"EPSG:3857",
-            'OUTPUT': gridOutput}
+            'HSPACING': cellsize,
+            'VSPACING': cellsize,
+            'HOVERLAY': 0,
+            'VOVERLAY': 0,
+            'CRS': 'EPSG:3857',
+            'OUTPUT': grid_output,
+        }
 
         out = processing.run('native:creategrid', params)
-        # self.parent.iface.messageBar().clearWidgets()
-       
-        grid = QgsVectorLayer(out['OUTPUT'], f"{tile[0]}_{self.interpreterName}", 'ogr')
-        
-        
-        dataProvider = grid.dataProvider()
+
+        grid = QgsVectorLayer(
+            out['OUTPUT'], f'{tile[0]}_{self.interpreterName}', 'ogr'
+        )
+
+        data_provider = grid.dataProvider()
         # Enter editing mode
         grid.startEditing()
 
         # add fields
-        dataProvider.addAttributes( 
-            [ 
-                QgsField("google_class", QVariant.String),
-                QgsField("google_image_start_date",  QVariant.String),
-                QgsField("google_image_end_date",  QVariant.String),
-                QgsField("bing_class", QVariant.String),
-                QgsField("bing_image_start_date",  QVariant.String),
-                QgsField("bing_image_end_date",  QVariant.String),
-                QgsField("missing_image_date",  QVariant.Int),
-                QgsField("same_image_bing_google",  QVariant.Bool)
-            ] 
+        data_provider.addAttributes(
+            [
+                QgsField('bing_class', QVariant.String),
+                QgsField('bing_image_start_date', QVariant.String),
+                QgsField('bing_image_end_date', QVariant.String),
+                QgsField('google_class', QVariant.String),
+                QgsField('google_image_start_date', QVariant.String),
+                QgsField('google_image_end_date', QVariant.String),
+                QgsField('missing_image_date', QVariant.Int),
+                QgsField('same_image_bing_google', QVariant.Bool),
+            ]
         )
 
-        # allFeatures = grid.getFeatures();
-        # field_idx = grid.fields().indexOf('class')
-        # for feature in allFeatures:
-        #     grid.changeAttributeValue(feature.id(), field_idx, self.parent.selectedClass)
-
         grid.commitChanges()
-    
+
         self.parent.currentPixelsLayer = grid
         QgsProject().instance().addMapLayer(grid)
 
-        symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'black','width_border':'0.1'})
+        symbol = QgsFillSymbol.createSimple(
+            {
+                'color': '0,0,0,0',
+                'color_border': 'black',
+                'width_border': '0.1',
+            }
+        )
         grid.renderer().setSymbol(symbol)
         grid.triggerRepaint()
-        self.parent.iface.setActiveLayer(grid);
-        self.parent.iface.zoomToActiveLayer();
-        
-        grid.selectionChanged.connect(self.addClassToFeature)
+        self.parent.iface.setActiveLayer(grid)
+        self.parent.iface.zoomToActiveLayer()
+
+        grid.selectionChanged.connect(self.add_class_to_feature)
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
-    def clearButtons(self, layout):
-        for i in reversed(range(layout.count())): 
+    def clear_buttons(self, layout):
+        for i in reversed(range(layout.count())):
             widget = layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
-   
-    def removeSelection(self):
+
+    def remove_selection(self):
         self.parent.selectedClass = None
-        self.parent.iface.actionSelectFreehand().trigger() 
-        self.getWidgetObject('selectedClass').setText(f"Removing classes...")
-        self.getWidgetObject('selectedClass').setStyleSheet(f"background-color: transparent; border-radius: 5px; padding :5px; border: 2px solid red")
-    
+        self.parent.iface.actionSelectFreehand().trigger()
+        self.get_widget_object('selectedClass').setText(f'Removing classes...')
+        self.get_widget_object('selectedClass').setStyleSheet(
+            f'background-color: transparent; border-radius: 5px; padding :5px; border: 2px solid red'
+        )
 
-    def onClickClass(self, item):
+    def on_click_class(self, item):
         """Write config in config file"""
-     
-        imageDate = self.parent.dockwidget.imageDate.date().toString('yyyy-MM-dd')
-        if (self.dateIsValid(imageDate)):
-            self.getWidgetObject('selectedClass').setText(f"Selected class:  {item['class'].upper()}")
-            self.getWidgetObject('selectedClass').setStyleSheet(f"background-color: {item['color']}; border-radius: 5px; padding :5px; border: 2px solid black")
-            self.parent.selectedClass = item['class'].upper()
-            self.selectedClassObject = item
-            self.parent.iface.actionSelectFreehand().trigger() 
-               
-        else:
-            self.parent.iface.messageBar().pushMessage("", f"The image date valid is required!", level=Qgis.Critical, duration=5)    
-    
-    def clearList(self, listWidget):
-        listWidget.clear()
-        for i in range(listWidget.count()):
-            item = listWidget.takeItem(i)
-            if item: 
-                item.deleteLater()
-            
-    def createClassesButtons(self, noImageDate):
-        for _class in self.parent.campaignsConfig['classes']:
-            if(_class['selected']):
-                self.onClickClass(_class)
 
-            if not noImageDate:
+        image_date = self.parent.dockwidget.imageDate.date().toString(
+            'yyyy-MM-dd'
+        )
+        if self.date_is_valid(image_date):
+            self.get_widget_object('selectedClass').setText(
+                f"Selected class:  {item['class'].upper()}"
+            )
+            self.get_widget_object('selectedClass').setStyleSheet(
+                f"background-color: {item['color']}; border-radius: 5px; padding :5px; border: 2px solid black"
+            )
+            self.parent.selectedClass = item['class'].upper()
+            self.selected_class_object = item
+            self.parent.iface.actionSelectFreehand().trigger()
+
+        else:
+            self.parent.iface.messageBar().pushMessage(
+                '',
+                f'The image date valid is required!',
+                level=Qgis.Critical,
+                duration=5,
+            )
+
+    def clear_list(self, list_widget):
+        list_widget.clear()
+        for i in range(list_widget.count()):
+            item = list_widget.takeItem(i)
+            if item:
+                item.deleteLater()
+
+    def create_classes_buttons(self, no_image_date):
+        for _class in self.parent.campaignsConfig['classes']:
+            if _class['selected']:
+                self.on_click_class(_class)
+
+            if not no_image_date:
                 button = QPushButton(_class['class'].upper(), checkable=True)
                 button.setStyleSheet(f"background-color: {_class['color']}")
                 button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
-                button.clicked.connect(lambda checked, value = _class : self.onClickClass(value))
-               
+                button.clicked.connect(
+                    lambda checked, value=_class: self.on_click_class(value)
+                )
+
                 item = QListWidgetItem()
                 item.setSizeHint(button.sizeHint())
-                self.getWidgetObject('classes').addItem(item)
-                self.getWidgetObject('classes').setItemWidget(item, button)
+                self.get_widget_object('classes').addItem(item)
+                self.get_widget_object('classes').setItemWidget(item, button)
 
-    def initInspectionTile(self, noImageDate=False):
+    def init_inspection_tile(self, no_image_date=False):
         """Load all class of type inspection"""
 
         # self.clearButtons(self.getWidgetObject('layoutClasses'))
-        list_classes = self.getWidgetObject('classes')
+        list_classes = self.get_widget_object('classes')
         list_classes.setVisible(True)
 
         if list_classes:
-            self.clearList(list_classes)
+            self.clear_list(list_classes)
 
-        if not noImageDate:
+        if not no_image_date:
             self.parent.dockwidget.btnNext.setEnabled(True)
-        else: 
-            self.nextTile(noImageDate)
+        else:
+            self.next_tile(no_image_date)
             return
-         
-        self.createClassesButtons(noImageDate)
-                
-        self.getWidgetObject('btnClearSelection').setVisible(True)
 
-    def clearContainerClasses(self, finished=False):
-        
-        if(self.parent.dockwidget):
+        self.create_classes_buttons(no_image_date)
+
+        self.get_widget_object('btnClearSelection').setVisible(True)
+
+    def clear_container_classes(self, finished=False):
+
+        if self.parent.dockwidget:
             self.inspecting = False
-            self.getWidgetObject('selectedClass').setVisible(False)
+            self.get_widget_object('selectedClass').setVisible(False)
             self.parent.dockwidget.btnLoadClasses.setVisible(False)
-            self.getWidgetObject('btnClearSelection').setVisible(False)
-            self.clearList(self.getWidgetObject('classes'))
+            self.get_widget_object('btnClearSelection').setVisible(False)
+            self.clear_list(self.get_widget_object('classes'))
             self.parent.dockwidget.importBingClassification.setVisible(False)
-            self.parent.dockwidget.imageDate.setDateTime(datetime.datetime.strptime('2000-01-01', '%Y-%m-%d'))
+            self.parent.dockwidget.imageDate.setDateTime(
+                datetime.datetime.strptime('2000-01-01', '%Y-%m-%d')
+            )
             self.parent.dockwidget.sameImage.setChecked(False)
 
-            if(finished):
-                    self.parent.dockwidget.btnNext.setVisible(False)
-                    self.parent.dockwidget.btnPointDate.setVisible(False)
-                    self.parent.dockwidget.labelImageDate.setVisible(False)
-                    self.parent.dockwidget.imageDate.setVisible(False)
-                    self.parent.dockwidget.btnLoadClasses.setVisible(False)
+            if finished:
+                self.parent.dockwidget.btnNext.setVisible(False)
+                self.parent.dockwidget.btnPointDate.setVisible(False)
+                self.parent.dockwidget.labelImageDate.setVisible(False)
+                self.parent.dockwidget.imageDate.setVisible(False)
+                self.parent.dockwidget.btnLoadClasses.setVisible(False)
             else:
-                self.getWidgetObject('labelClass').setVisible(False)
+                self.get_widget_object('labelClass').setVisible(False)
 
-            # for i in reversed(range(self.getWidgetObject('layoutClasses').count())): 
-            #     self.getWidgetObject('layoutClasses').itemAt(i).widget().setParent(None)
-
-
-    def layerIsEmpty(self, layer):
-        request = QgsFeatureRequest().setFilterExpression(' "google_class" is NULL AND "google_image_start_date" is NULL AND "google_image_start_date" is NULL OR "bing_class" is NULL AND "bing_image_start_date" is NULL AND "bing_image_end_date" is NULL')
-        resultFeatures = layer.getFeatures(request);
-
-        if(layer.featureCount() == len(list(resultFeatures))):
+    def layer_has_tiles_without_date_and_class(self, layer):
+        request = QgsFeatureRequest().setFilterExpression(
+            '"google_class" is NULL AND "google_image_start_date" is NULL AND "google_image_start_date" is NULL AND "bing_class" is NULL AND "bing_image_start_date" is NULL AND "bing_image_end_date" is NULL'
+        )
+        result_features = layer.getFeatures(request)
+        total = len(list(result_features))
+        # if (layer.featureCount() == total):
+        if total > 0:
+            message = f'There are {total} pixels with no informed date.'
+            self.parent.iface.messageBar().pushMessage(
+                'PIXELS WITHOUT DATE', message, level=Qgis.Warning, duration=6
+            )
             return True
         else:
             return False
 
-    def tileMissingDate(self, tile):
+    def tile_missing_date(self, tile):
         # Enter editing mode
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         self.parent.tilesLayer.startEditing()
         request = QgsFeatureRequest()
         request.setFilterFids([tile[0]])
-        allFeatures = self.parent.tilesLayer.getFeatures(request);
-        missing_image_date_idx = self.parent.tilesLayer.fields().indexOf('missing_image_date')
-        for feature in allFeatures:
-            self.parent.tilesLayer.changeAttributeValue(feature.id(), missing_image_date_idx, 1)    
+        all_features = self.parent.tilesLayer.getFeatures(request)
+        missing_image_date_idx = self.parent.tilesLayer.fields().indexOf(
+            'missing_image_date'
+        )
+        for feature in all_features:
+            self.parent.tilesLayer.changeAttributeValue(
+                feature.id(), missing_image_date_idx, 1
+            )
 
         self.parent.tilesLayer.commitChanges()
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
-    def noDataInTile(self, layer, index, tilesLength):
-        self.tileMissingDate(self.parent.tiles[self.parent.currentTileIndex])
-        if(index < tilesLength):
+    def no_data_in_tile(self, layer, index, tiles_length):
+        self.tile_missing_date(self.parent.tiles[self.parent.currentTileIndex])
+        if index < tiles_length:
             self.parent.currentTileIndex = index
-            self.parent.setConfig(key='currentTileIndex', value= index)
+            self.parent.set_config(key='currentTileIndex', value=index)
             QgsProject.instance().removeMapLayer(layer.id())
-            self.parent.configTiles()
-            self.clearContainerClasses()
-            self.onChangeTab(1)
+            self.parent.config_tiles()
+            self.clear_container_classes()
+            self.on_change_tab(1)
 
-        if(index == tilesLength):
-            self.parent.iface.messageBar().pushMessage("", "Inspection FINISHED!", level=Qgis.Info, duration=15)
-            self.getWidgetObject('tileInfo').setText(f"INSPECTION FINISHED!")
-            self.clearContainerClasses(finished=True)
-            self.parent.setConfig(key='currentTileIndex', value=0)
-            self.parent.setConfig(key='filePath', value='')
-            self.parent.setConfig(key='workingDirectory', value='')
-            self.parent.setConfig(key='interpreterName', value='')
-            self.parent.setConfig(key='imageSource', value='BING')
+        if index == tiles_length:
+            self.parent.iface.messageBar().pushMessage(
+                '', 'Inspection FINISHED!', level=Qgis.Info, duration=15
+            )
+            self.get_widget_object('tileInfo').setText(f'INSPECTION FINISHED!')
+            self.clear_container_classes(finished=True)
+            self.parent.set_config(key='currentTileIndex', value=0)
+            self.parent.set_config(key='filePath', value='')
+            self.parent.set_config(key='workingDirectory', value='')
+            self.parent.set_config(key='interpreterName', value='')
+            self.parent.set_config(key='imageSource', value='BING')
             self.parent.currentTileIndex = 0
             time.sleep(2)
-            self.parent.onClosePlugin();
+            self.parent.onClosePlugin()
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-           
-    
-    def setSameImage(self, value):
+
+    def set_same_image(self, value):
         if self.inspecting:
             layer = self.parent.currentPixelsLayer
             QApplication.instance().setOverrideCursor(Qt.BusyCursor)
             layer.startEditing()
-            allFeatures = layer.getFeatures();
-            same_image_bing_google_idx = layer.fields().indexOf('same_image_bing_google')
-            for feature in allFeatures:
-                layer.changeAttributeValue(feature.id(), same_image_bing_google_idx, value)
+            all_features = layer.getFeatures()
+            same_image_bing_google_idx = layer.fields().indexOf(
+                'same_image_bing_google'
+            )
+            for feature in all_features:
+                layer.changeAttributeValue(
+                    feature.id(), same_image_bing_google_idx, value
+                )
             layer.commitChanges()
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
-    def setImportClassesBing(self):
+    # def import_classes_bing(self):
+    #     QApplication.instance().setOverrideCursor(Qt.BusyCursor)
+    #     layer = self.parent.currentPixelsLayer
+    #     image_date = self.parent.dockwidget.imageDate.date().toString(
+    #         'yyyy-MM-dd'
+    #     )
+    #     google_class_idx = self.parent.currentPixelsLayer.fields().indexOf('google_class')
+    #     google_image_start_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_start_date')
+    #     google_image_end_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_end_date')
+    #     # values = {
+    #     #     feature.id(): {
+    #     #         google_class_idx: feature["bing_class"],
+    #     #         google_image_start_date_idx: image_date,
+    #     #         google_image_end_date_idx: image_date
+    #     #     } for feature in layer.getFeatures()
+    #     # }
+    #     #
+    #     # layer.dataProvider().changeAttributeValues(values)
+    #
+    #     layer.startEditing()
+    #
+    #     for feature in layer.getFeatures():
+    #         feature.setAttribute('google_class', feature['bing_class'])
+    #         feature.setAttribute('google_image_start_date', image_date)
+    #         feature.setAttribute('google_image_end_date', image_date)
+    #
+    #         # Update the feature in the layer
+    #         layer.updateFeature(feature)
+    #
+    #     layer.commitChanges()
+    #
+    #     QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+
+    def import_classes_bing(self):
         layer = self.parent.currentPixelsLayer
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         layer.startEditing()
-        allFeatures = layer.getFeatures()
-        google_class_idx = self.parent.currentPixelsLayer.fields().indexOf('google_class')
-        google_image_start_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_start_date')
-        google_image_end_date_idx = self.parent.currentPixelsLayer.fields().indexOf('google_image_end_date')
-     
-        imageDate = self.parent.dockwidget.imageDate.date().toString('yyyy-MM-dd')
-        for feature in allFeatures:
-            layer.changeAttributeValue(feature.id(), google_class_idx, feature["bing_class"])
-            layer.changeAttributeValue(feature.id(), google_image_start_date_idx, imageDate)
-            layer.changeAttributeValue(feature.id(), google_image_end_date_idx, imageDate)
+        all_features = layer.getFeatures()
+        google_class_idx = self.parent.currentPixelsLayer.fields().indexOf(
+            'google_class'
+        )
+        google_image_start_date_idx = (
+            self.parent.currentPixelsLayer.fields().indexOf(
+                'google_image_start_date'
+            )
+        )
+        google_image_end_date_idx = (
+            self.parent.currentPixelsLayer.fields().indexOf(
+                'google_image_end_date'
+            )
+        )
+
+        image_date = self.parent.dockwidget.imageDate.date().toString(
+            'yyyy-MM-dd'
+        )
+        for feature in all_features:
+            layer.changeAttributeValue(
+                feature.id(), google_class_idx, feature['bing_class']
+            )
+            layer.changeAttributeValue(
+                feature.id(), google_image_start_date_idx, image_date
+            )
+            layer.changeAttributeValue(
+                feature.id(), google_image_end_date_idx, image_date
+            )
 
         layer.commitChanges()
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
-    def nextTile(self, noImageDate=False):
+    def next_tile(self, no_image_date=False):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         layer = None
         index = self.parent.currentTileIndex + 1
-        tilesLength = len(self.parent.tiles)
-        retvalNoImageDate = None
+        tiles_length = len(self.parent.tiles)
+        dialog_response = None
 
         layer = self.parent.currentPixelsLayer
-              
-        if(layer):
 
-            if(not noImageDate):
+        if layer:
+
+            if not no_image_date:
                 self.parent.dockwidget.btnNext.setVisible(False)
-                if(self.layerIsEmpty(layer)):
-                    retvalNoImageDate = self.dialog(
-                        title="INSPECTION TILES",
-                        text="Valid image date is required to classify this tile!",
-                        info="If the image date were not found, the tile would be ignored. Do you confirm the missing date of the image?",
-                        type="Question"
+                if self.layer_has_tiles_without_date_and_class(layer):
+                    QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+                    dialog_response = self.dialog(
+                        title='INSPECTION TILES',
+                        info='Are you sure you want to generate a GPKG for this tile, even though some pixels do not have an associated date?',
+                        text='This tile has pixels with no informed date.',
+                        type='Question',
                     )
-                    if (retvalNoImageDate == 16384):
-                        self.initInspectionTile(noImageDate=True)
+
+                    if dialog_response == QMessageBox.No:
+                        self.parent.dockwidget.btnNext.setVisible(True)
                         return
 
-            if( index <= tilesLength):
-                if not noImageDate:
-                    endTime = datetime.datetime.now()
-                    name = self.parent.getConfig('interpreterName')
+            if index <= tiles_length:
+                if not no_image_date:
+                    end_time = datetime.datetime.now()
+                    name = self.parent.get_config('interpreterName')
 
-                    if name is "":
+                    if name is '':
                         name = self.parent.dockwidget.interpreterName.text()
-                    
-                    metadata = [f'DESCRIPTION=start_time: {self.inspectionStartDatetime.strftime("%Y-%m-%d %H:%M:%S")} | end_time: {endTime.strftime("%Y-%m-%d %H:%M:%S")} | time_in_seconds: {str((endTime - self.inspectionStartDatetime).total_seconds())} | interpreter: {self.normalize(name)}']
-                    result =  Writer(self, layer, metadata).gpkg()
-                    if(result and (index < tilesLength)):
+
+                    metadata = [
+                        f'DESCRIPTION=start_time: {self.inspection_start_datetime.strftime("%Y-%m-%d %H:%M:%S")} | end_time: {end_time.strftime("%Y-%m-%d %H:%M:%S")} | time_in_seconds: {str((end_time - self.inspection_start_datetime).total_seconds())} | interpreter: {self.normalize(name)}'
+                    ]
+                    result = Writer(self, layer, metadata).gpkg()
+                    if result and (index < tiles_length):
                         self.parent.currentTileIndex = index
-                        self.parent.setConfig(key='currentTileIndex', value= index)
+                        self.parent.set_config(
+                            key='currentTileIndex', value=index
+                        )
                         QgsProject.instance().removeMapLayer(layer.id())
-                        self.parent.configTiles()
+                        self.parent.config_tiles()
+
                 else:
-                    self.noDataInTile(layer, index, tilesLength)
+                    self.no_data_in_tile(layer, index, tiles_length)
                     return
 
-            self.clearContainerClasses()
+            self.clear_container_classes()
 
-            if(index == tilesLength):
-                self.parent.iface.messageBar().pushMessage("", "Inspection FINISHED!", level=Qgis.Info, duration=15)
-                if(self.parent.dockwidget):
-                    self.getWidgetObject('tileInfo').setText(f"INSPECTION FINISHED!")
-                    self.parent.setConfig(key='currentTileIndex', value=0)
-                    self.parent.setConfig(key='filePath', value='')
-                    self.parent.setConfig(key='workingDirectory', value='')
-                    self.parent.setConfig(key='interpreterName', value='')
-                    self.parent.setConfig(key='imageSource', value='BING')
-                    self.clearContainerClasses(finished=True)
+            if index == tiles_length:
+                self.parent.iface.messageBar().pushMessage(
+                    '', 'Inspection FINISHED!', level=Qgis.Info, duration=15
+                )
+                if self.parent.dockwidget:
+                    self.get_widget_object('tileInfo').setText(
+                        f'INSPECTION FINISHED!'
+                    )
+                    self.parent.set_config(key='currentTileIndex', value=0)
+                    self.parent.set_config(key='filePath', value='')
+                    self.parent.set_config(key='workingDirectory', value='')
+                    self.parent.set_config(key='interpreterName', value='')
+                    self.parent.set_config(key='imageSource', value='BING')
+                    self.clear_container_classes(finished=True)
                     QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-
                 self.parent.currentTileIndex = 0
                 time.sleep(2)
-                self.parent.onClosePlugin();
-            
-        else: 
-            self.parent.iface.messageBar().pushMessage("", "Something went wrong with the layer, Please close the plugin and try again", level=Qgis.Critical, duration=10)  
+                self.parent.onClosePlugin()
+            else:
+                self.on_change_tab(1)
+
+        else:
+            self.parent.iface.messageBar().pushMessage(
+                '',
+                'Something went wrong with the layer, Please close the plugin and try again',
+                level=Qgis.Critical,
+                duration=10,
+            )
 
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-        self.parent.iface.actionPan().trigger() 
-        self.onChangeTab(1)
+        self.parent.iface.actionPan().trigger()
 
-    def loadTileFromFile(self, tile):
+    def load_tile_from_file(self, tile):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         self.parent.currentPixelsLayer = None
-        self.livestockLayer = None
-        
-        self.initInspectionTile()
-        
-        filename = path.normpath(f"{self.parent.dockwidget.fieldWorkingDirectory.text()}/{tile[0]}_{self.parent.campaignsConfig['_id']}.gpkg") 
-        layer = QgsVectorLayer(filename, f"{tile[0]}", 'ogr')
+        self.livestock_layer = None
 
-        symbol = QgsFillSymbol.createSimple({'color':'0,0,0,0','color_border':'black','width_border':'0.1'})
+        self.init_inspection_tile()
+
+        filename = path.normpath(
+            f"{self.parent.dockwidget.fieldWorkingDirectory.text()}/{tile[0]}_{self.parent.campaignsConfig['_id']}.gpkg"
+        )
+        layer = QgsVectorLayer(filename, f'{tile[0]}', 'ogr')
+
+        symbol = QgsFillSymbol.createSimple(
+            {
+                'color': '0,0,0,0',
+                'color_border': 'black',
+                'width_border': '0.1',
+            }
+        )
         layer.renderer().setSymbol(symbol)
         self.parent.currentPixelsLayer = layer
-        self.setFeatureColor()
+        self.set_feature_color()
 
         QgsProject().instance().addMapLayer(layer)
-        self.parent.iface.setActiveLayer(layer);
-        self.parent.iface.zoomToActiveLayer();
-        self.clearContainerClasses()
+        self.parent.iface.setActiveLayer(layer)
+        self.parent.iface.zoomToActiveLayer()
+        self.clear_container_classes()
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-            
-    def startInspectionGoogle(self):
-        self.parent.setConfig(key='imageSource', value='GOOGLE')
-        self.setFeatureColor()
-        QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerGoogle.id()).setItemVisibilityChecked(True)
-        QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerBing.id()).setItemVisibilityChecked(False)
+
+    def start_inspection_google(self):
+        self.parent.set_config(key='imageSource', value='GOOGLE')
+        self.set_feature_color()
+        QgsProject.instance().layerTreeRoot().findLayer(
+            self.parent.layerGoogle.id()
+        ).setItemVisibilityChecked(True)
+        QgsProject.instance().layerTreeRoot().findLayer(
+            self.parent.layerBing.id()
+        ).setItemVisibilityChecked(False)
         self.parent.dockwidget.tabWidget.setCurrentIndex(2)
         self.parent.dockwidget.tabWidget.setTabEnabled(2, True)
 
-    def onChangeTab(self, tab): 
+    def on_change_tab(self, tab):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         if tab == 1:
-            self.parent.iface.mapCanvas().setSelectionColor(QColor(255, 255, 255, 0))
-            self.parent.setConfig(key='imageSource', value='BING')
-            self.loadTileMetadataFromBing(self.tileGeom)
-            self.setFeatureColor()
-            self.parent.loadClasses()
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerGoogle.id()).setItemVisibilityChecked(False)
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerBing.id()).setItemVisibilityChecked(True)
+            self.parent.iface.mapCanvas().setSelectionColor(
+                QColor(255, 255, 255, 0)
+            )
+            self.parent.set_config(key='imageSource', value='BING')
+            self.load_tile_metadata_from_bing(self.tile_geom)
+            self.set_feature_color()
+            self.parent.load_classes()
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerGoogle.id()
+            ).setItemVisibilityChecked(False)
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerBing.id()
+            ).setItemVisibilityChecked(True)
             self.parent.dockwidget.btnFinishBing.setVisible(True)
             self.parent.dockwidget.tabWidget.setCurrentIndex(1)
             self.parent.dockwidget.tabWidget.setTabEnabled(1, True)
-            
+
         elif tab == 2:
-            self.parent.setConfig(key='imageSource', value='GOOGLE')
-            self.parent.iface.mapCanvas().setSelectionColor(QColor(255, 255, 255, 0))
-            self.loadThumbnailBing(self.bingThumUrl)
-            self.setFeatureColor()
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerGoogle.id()).setItemVisibilityChecked(True)
-            QgsProject.instance().layerTreeRoot().findLayer(self.parent.layerBing.id()).setItemVisibilityChecked(False)
+            self.parent.set_config(key='imageSource', value='GOOGLE')
+            self.parent.iface.mapCanvas().setSelectionColor(
+                QColor(255, 255, 255, 0)
+            )
+            self.load_thumbnail_bing(self.bing_thumb_url)
+            self.set_feature_color()
+            self.inspecting = True
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerGoogle.id()
+            ).setItemVisibilityChecked(True)
+            QgsProject.instance().layerTreeRoot().findLayer(
+                self.parent.layerBing.id()
+            ).setItemVisibilityChecked(False)
             self.parent.dockwidget.tabWidget.setCurrentIndex(2)
             self.parent.dockwidget.tabWidget.setTabEnabled(2, True)
-            
-        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)

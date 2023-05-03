@@ -1,7 +1,7 @@
 from peewee import *
 
-
 db = SqliteDatabase(':memory:')
+
 
 class Node(Model):
     name = TextField()
@@ -14,25 +14,31 @@ class Node(Model):
         return self.name
 
     def dump(self, _indent=0):
-        return ('  ' * _indent + self.name + '\n' +
-                ''.join(child.dump(_indent + 1) for child in self.children))
+        return (
+            '  ' * _indent
+            + self.name
+            + '\n'
+            + ''.join(child.dump(_indent + 1) for child in self.children)
+        )
+
 
 db.create_tables([Node])
 
-tree = ('root', (
-    ('n1', (
-        ('c11', ()),
-        ('c12', ()))),
-    ('n2', (
-        ('c21', ()),
-        ('c22', (
-            ('g221', ()),
-            ('g222', ()))),
-        ('c23', ()),
-        ('c24', (
-            ('g241', ()),
-            ('g242', ()),
-            ('g243', ())))))))
+tree = (
+    'root',
+    (
+        ('n1', (('c11', ()), ('c12', ()))),
+        (
+            'n2',
+            (
+                ('c21', ()),
+                ('c22', (('g221', ()), ('g222', ()))),
+                ('c23', ()),
+                ('c24', (('g241', ()), ('g242', ()), ('g243', ()))),
+            ),
+        ),
+    ),
+)
 stack = [(None, tree)]
 while stack:
     parent, (name, children) = stack.pop()
@@ -43,7 +49,9 @@ while stack:
 # Now that we have created the stack, let's eagerly load 4 levels of children.
 # To show that it works, we'll turn on the query debugger so you can see which
 # queries are executed.
-import logging; logger = logging.getLogger('peewee')
+import logging
+
+logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 

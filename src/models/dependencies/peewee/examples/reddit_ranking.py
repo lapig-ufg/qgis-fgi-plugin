@@ -4,16 +4,18 @@ import math
 from peewee import *
 from peewee import query_to_string
 
-
 db = SqliteDatabase(':memory:')
+
 
 @db.func('log')
 def log(n, b):
     return math.log(n, b)
 
+
 class Base(Model):
     class Meta:
         database = db
+
 
 class Post(Base):
     content = TextField()
@@ -46,23 +48,29 @@ data = (
 )
 
 now = datetime.datetime.now()
-Post.insert_many([
-    ('post %2dh %2d up, %2d down' % (hours, ups, downs),
-     now - datetime.timedelta(seconds=hours * 3600),
-     ups,
-     downs) for hours, ups, downs in data]).execute()
+Post.insert_many(
+    [
+        (
+            'post %2dh %2d up, %2d down' % (hours, ups, downs),
+            now - datetime.timedelta(seconds=hours * 3600),
+            ups,
+            downs,
+        )
+        for hours, ups, downs in data
+    ]
+).execute()
 
 
-score = (Post.ups - Post.downs)
+score = Post.ups - Post.downs
 order = fn.log(fn.max(fn.abs(score), 1), 10)
-sign = Case(None, (
-    ((score > 0), 1),
-    ((score < 0), -1)), 0)
+sign = Case(None, (((score > 0), 1), ((score < 0), -1)), 0)
 seconds = (Post.timestamp) - 1134028003
 
 hot = (sign * order) + (seconds / 45000)
-query = Post.select(Post.content, hot.alias('score')).order_by(SQL('score').desc())
-#print(query_to_string(query))
+query = Post.select(Post.content, hot.alias('score')).order_by(
+    SQL('score').desc()
+)
+# print(query_to_string(query))
 print('Posts, ordered best-to-worse:')
 
 for post in query:

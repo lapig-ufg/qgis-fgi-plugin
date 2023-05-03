@@ -87,7 +87,7 @@
          <cursorShape>ArrowCursor</cursorShape>
         </property>
         <property name="currentIndex">
-         <number>0</number>
+         <number>2</number>
         </property>
         <widget class="QWidget" name="tabConfig">
          <property name="minimumSize">
@@ -247,7 +247,7 @@
           <bool>true</bool>
          </property>
          <attribute name="title">
-          <string>Tiles Bing</string>
+          <string>Bing Tiles </string>
          </attribute>
          <widget class="QWidget" name="layoutWidget_4">
           <property name="geometry">
@@ -594,7 +594,7 @@ border-radius: 3px</string>
         </widget>
         <widget class="QWidget" name="tabTilesGoogle">
          <attribute name="title">
-          <string>Tiles Google</string>
+          <string>Google Tiles </string>
          </attribute>
          <widget class="QWidget" name="layoutWidget_7">
           <property name="geometry">

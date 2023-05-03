@@ -1,6 +1,5 @@
 from peewee import *
 
-
 db = SqliteDatabase(':memory:')
 
 
@@ -13,18 +12,20 @@ class Node(Base):
     name = TextField(primary_key=True)
 
     def outgoing(self):
-        return (Node
-                .select(Node, Edge.weight)
-                .join(Edge, on=Edge.dest)
-                .where(Edge.src == self)
-                .objects())
+        return (
+            Node.select(Node, Edge.weight)
+            .join(Edge, on=Edge.dest)
+            .where(Edge.src == self)
+            .objects()
+        )
 
     def incoming(self):
-        return (Node
-                .select(Node, Edge.weight)
-                .join(Edge, on=Edge.src)
-                .where(Edge.dest == self)
-                .objects())
+        return (
+            Node.select(Node, Edge.weight)
+            .join(Edge, on=Edge.src)
+            .where(Edge.dest == self)
+            .objects()
+        )
 
 
 class Edge(Base):
@@ -45,7 +46,8 @@ g = (
     ('b', 'e', 2),
     ('d', 'b', 1),
     ('d', 'c', 5),
-    ('e', 'd', -3))
+    ('e', 'd', -3),
+)
 for src, dest, wt in g:
     src_n, dest_n = nodes[ord(src) - ord('a')], nodes[ord(dest) - ord('a')]
     Edge.create(src=src_n, dest=dest_n, weight=wt)
@@ -75,6 +77,7 @@ def bellman_ford(s):
 
     return dist, pred
 
+
 def print_path(s, e):
     dist, pred = bellman_ford(s)
     distance = dist[e]
@@ -84,6 +87,7 @@ def print_path(s, e):
         e = pred[e]
 
     print(' -> '.join(v.name for v in route[::-1]) + ' (%s)' % distance)
+
 
 print_path(Node['a'], Node['c'])  # a -> b -> c
 print_path(Node['a'], Node['d'])  # a -> b -> e -> d

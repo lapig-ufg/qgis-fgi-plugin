@@ -5,31 +5,35 @@ import struct
 import sys
 
 from peewee import *
-from peewee import ColumnBase
-from peewee import EnclosedNodeList
-from peewee import Entity
-from peewee import Expression
-from peewee import Insert
-from peewee import Node
-from peewee import NodeList
-from peewee import OP
-from peewee import VirtualField
-from peewee import merge_dict
-from peewee import sqlite3
+from peewee import (
+    OP,
+    ColumnBase,
+    EnclosedNodeList,
+    Entity,
+    Expression,
+    Insert,
+    Node,
+    NodeList,
+    VirtualField,
+    merge_dict,
+    sqlite3,
+)
+
 try:
     from playhouse._sqlite_ext import (
-        backup,
-        backup_to_file,
         Blob,
         ConnectionHelper,
+        TableFunction,
+        ZeroBlob,
+        backup,
+        backup_to_file,
         register_bloomfilter,
         register_hash_functions,
         register_rank_functions,
         sqlite_get_db_status,
         sqlite_get_status,
-        TableFunction,
-        ZeroBlob,
     )
+
     CYTHON_SQLITE_EXTENSIONS = True
 except ImportError:
     CYTHON_SQLITE_EXTENSIONS = False
@@ -55,8 +59,9 @@ class RowIDField(AutoField):
 
     def bind(self, model, name, *args):
         if name != self.required_name:
-            raise ValueError('%s must be named "%s".' %
-                             (type(self), self.required_name))
+            raise ValueError(
+                '%s must be named "%s".' % (type(self), self.required_name)
+            )
         super(RowIDField, self).bind(model, name, *args)
 
 
@@ -72,7 +77,9 @@ class AutoIncrementField(AutoField):
 
 class TDecimalField(DecimalField):
     field_type = 'TEXT'
-    def get_modifiers(self): pass
+
+    def get_modifiers(self):
+        pass
 
 
 class JSONPath(ColumnBase):
@@ -130,8 +137,11 @@ class JSONPath(ColumnBase):
         return fn.json_tree(self._field, self.path)
 
     def __sql__(self, ctx):
-        return ctx.sql(fn.json_extract(self._field, self.path)
-                       if self._path else self._field)
+        return ctx.sql(
+            fn.json_extract(self._field, self.path)
+            if self._path
+            else self._field
+        )
 
 
 class JSONField(TextField):
@@ -161,7 +171,9 @@ class JSONField(TextField):
             if isinstance(rhs, (list, dict)):
                 rhs = Value(rhs, converter=self.db_value, unpack=False)
             return Expression(self, op, rhs)
+
         return inner
+
     __eq__ = _e(OP.EQ)
     __ne__ = _e(OP.NE)
     __gt__ = _e(OP.GT)
@@ -176,8 +188,10 @@ class JSONField(TextField):
     def extract(self, *paths):
         paths = [Value(p, converter=False) for p in paths]
         return fn.json_extract(self, *paths)
+
     def extract_json(self, path):
         return Expression(self, '->', Value(path, converter=False))
+
     def extract_text(self, path):
         return Expression(self, '->>', Value(path, converter=False))
 
@@ -232,10 +246,13 @@ class JSONField(TextField):
 class SearchField(Field):
     def __init__(self, unindexed=False, column_name=None, **k):
         if k:
-            raise ValueError('SearchField does not accept these keyword '
-                             'arguments: %s.' % sorted(k))
-        super(SearchField, self).__init__(unindexed=unindexed,
-                                          column_name=column_name, null=True)
+            raise ValueError(
+                'SearchField does not accept these keyword '
+                'arguments: %s.' % sorted(k)
+            )
+        super(SearchField, self).__init__(
+            unindexed=unindexed, column_name=column_name, null=True
+        )
 
     def match(self, term):
         return match(self, term)
@@ -243,8 +260,11 @@ class SearchField(Field):
     @property
     def fts_column_index(self):
         if not hasattr(self, '_fts_column_index'):
-            search_fields = [f.name for f in self.model._meta.sorted_fields
-                             if isinstance(f, SearchField)]
+            search_fields = [
+                f.name
+                for f in self.model._meta.sorted_fields
+                if isinstance(f, SearchField)
+            ]
             self._fts_column_index = search_fields.index(self.name)
         return self._fts_column_index
 
@@ -256,14 +276,21 @@ class SearchField(Field):
         if not (0 < max_tokens < 65):
             raise ValueError('max_tokens must be between 1 and 64 (inclusive)')
         column_idx = self.fts_column_index
-        return fn.snippet(self.model._meta.entity, column_idx, left, right,
-                          over_length, max_tokens)
+        return fn.snippet(
+            self.model._meta.entity,
+            column_idx,
+            left,
+            right,
+            over_length,
+            max_tokens,
+        )
 
 
 class VirtualTableSchemaManager(SchemaManager):
     def _create_virtual_table(self, safe=True, **options):
         options = self.model.clean_options(
-            merge_dict(self.model._meta.options, options))
+            merge_dict(self.model._meta.options, options)
+        )
 
         # Structure:
         # CREATE VIRTUAL TABLE <model>
@@ -273,9 +300,7 @@ class VirtualTableSchemaManager(SchemaManager):
         ctx.literal('CREATE VIRTUAL TABLE ')
         if safe:
             ctx.literal('IF NOT EXISTS ')
-        (ctx
-         .sql(self.model)
-         .literal(' USING '))
+        (ctx.sql(self.model).literal(' USING '))
 
         ext_module = self.model._meta.extension_module
         if isinstance(ext_module, Node):
@@ -309,7 +334,8 @@ class VirtualTableSchemaManager(SchemaManager):
             return self._create_virtual_table(safe, **options)
 
         return super(VirtualTableSchemaManager, self)._create_table(
-            safe, **options)
+            safe, **options
+        )
 
 
 class VirtualModel(Model):
@@ -337,8 +363,9 @@ class BaseFTSModel(VirtualModel):
             options['content'] = "''"
         elif isinstance(content, Field):
             # Special-case to ensure fields are fully-qualified.
-            options['content'] = Entity(content.model._meta.table_name,
-                                        content.column_name)
+            options['content'] = Entity(
+                content.model._meta.table_name, content.column_name
+            )
 
         if prefix:
             if isinstance(prefix, (list, tuple)):
@@ -359,6 +386,7 @@ class FTSModel(BaseFTSModel):
     search extensions. Peewee automatically determines which version of the
     FTS extension is supported and will use FTS4 if possible.
     """
+
     # FTS3/4 uses "docid" in the same way a normal table uses "rowid".
     docid = DocIDField()
 
@@ -369,7 +397,8 @@ class FTSModel(BaseFTSModel):
     def _fts_cmd(cls, cmd):
         tbl = cls._meta.table_name
         res = cls._meta.database.execute_sql(
-            "INSERT INTO %s(%s) VALUES('%s');" % (tbl, tbl, cmd))
+            "INSERT INTO %s(%s) VALUES('%s');" % (tbl, tbl, cmd)
+        )
         return res.fetchone()
 
     @classmethod
@@ -420,8 +449,15 @@ class FTSModel(BaseFTSModel):
         return fn.fts_lucene(match_info, *weights)
 
     @classmethod
-    def _search(cls, term, weights, with_score, score_alias, score_fn,
-                explicit_ordering):
+    def _search(
+        cls,
+        term,
+        weights,
+        with_score,
+        score_alias,
+        score_fn,
+        explicit_ordering,
+    ):
         if not weights:
             rank = score_fn()
         elif isinstance(weights, dict):
@@ -442,38 +478,45 @@ class FTSModel(BaseFTSModel):
         if with_score and not explicit_ordering:
             order_by = SQL(score_alias)
 
-        return (cls
-                .select(*selection)
-                .where(cls.match(term))
-                .order_by(order_by))
+        return cls.select(*selection).where(cls.match(term)).order_by(order_by)
 
     @classmethod
-    def search(cls, term, weights=None, with_score=False, score_alias='score',
-               explicit_ordering=False):
+    def search(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search using selected `term`."""
         return cls._search(
-            term,
-            weights,
-            with_score,
-            score_alias,
-            cls.rank,
-            explicit_ordering)
+            term, weights, with_score, score_alias, cls.rank, explicit_ordering
+        )
 
     @classmethod
-    def search_bm25(cls, term, weights=None, with_score=False,
-                    score_alias='score', explicit_ordering=False):
+    def search_bm25(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search for selected `term` using BM25 algorithm."""
         return cls._search(
-            term,
-            weights,
-            with_score,
-            score_alias,
-            cls.bm25,
-            explicit_ordering)
+            term, weights, with_score, score_alias, cls.bm25, explicit_ordering
+        )
 
     @classmethod
-    def search_bm25f(cls, term, weights=None, with_score=False,
-                     score_alias='score', explicit_ordering=False):
+    def search_bm25f(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search for selected `term` using BM25 algorithm."""
         return cls._search(
             term,
@@ -481,11 +524,18 @@ class FTSModel(BaseFTSModel):
             with_score,
             score_alias,
             cls.bm25f,
-            explicit_ordering)
+            explicit_ordering,
+        )
 
     @classmethod
-    def search_lucene(cls, term, weights=None, with_score=False,
-                      score_alias='score', explicit_ordering=False):
+    def search_lucene(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search for selected `term` using BM25 algorithm."""
         return cls._search(
             term,
@@ -493,14 +543,17 @@ class FTSModel(BaseFTSModel):
             with_score,
             score_alias,
             cls.lucene,
-            explicit_ordering)
+            explicit_ordering,
+        )
 
 
 _alphabet = 'abcdefghijklmnopqrstuvwxyz'
-_alphanum = (set('\t ,"(){}*:_+0123456789') |
-             set(_alphabet) |
-             set(_alphabet.upper()) |
-             set((chr(26),)))
+_alphanum = (
+    set('\t ,"(){}*:_+0123456789')
+    | set(_alphabet)
+    | set(_alphabet.upper())
+    | set((chr(26),))
+)
 _invalid_ascii = set(chr(p) for p in range(128) if chr(p) not in _alphanum)
 del _alphabet
 del _alphanum
@@ -561,6 +614,7 @@ class FTS5Model(BaseFTSModel):
     * highlight(tbl, col_idx, prefix, suffix)
     * snippet(tbl, col_idx, prefix, suffix, ?, max_tokens)
     """
+
     # FTS5 does not support declared primary keys, but we can use the
     # implicit rowid.
     rowid = RowIDField()
@@ -569,8 +623,10 @@ class FTS5Model(BaseFTSModel):
         extension_module = 'fts5'
 
     _error_messages = {
-        'field_type': ('Besides the implicit `rowid` column, all columns must '
-                       'be instances of SearchField'),
+        'field_type': (
+            'Besides the implicit `rowid` column, all columns must '
+            'be instances of SearchField'
+        ),
         'index': 'Secondary indexes are not supported for FTS5 models',
         'pk': 'FTS5 models must use the default `rowid` primary key',
     }
@@ -663,19 +719,32 @@ class FTS5Model(BaseFTSModel):
         return fn.bm25(cls._meta.entity, *weights)
 
     @classmethod
-    def search(cls, term, weights=None, with_score=False, score_alias='score',
-               explicit_ordering=False):
+    def search(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search using selected `term`."""
         return cls.search_bm25(
             FTS5Model.clean_query(term),
             weights,
             with_score,
             score_alias,
-            explicit_ordering)
+            explicit_ordering,
+        )
 
     @classmethod
-    def search_bm25(cls, term, weights=None, with_score=False,
-                    score_alias='score', explicit_ordering=False):
+    def search_bm25(
+        cls,
+        term,
+        weights=None,
+        with_score=False,
+        score_alias='score',
+        explicit_ordering=False,
+    ):
         """Full-text search using selected `term`."""
         if not weights:
             rank = SQL('rank')
@@ -684,7 +753,8 @@ class FTS5Model(BaseFTSModel):
             for field in cls._meta.sorted_fields:
                 if isinstance(field, SearchField) and not field.unindexed:
                     weight_args.append(
-                        weights.get(field, weights.get(field.name, 1.0)))
+                        weights.get(field, weights.get(field.name, 1.0))
+                    )
             rank = fn.bm25(cls._meta.entity, *weight_args)
         else:
             rank = fn.bm25(cls._meta.entity, *weights)
@@ -696,10 +766,11 @@ class FTS5Model(BaseFTSModel):
         if with_score and not explicit_ordering:
             order_by = SQL(score_alias)
 
-        return (cls
-                .select(*selection)
-                .where(cls.match(FTS5Model.clean_query(term)))
-                .order_by(order_by))
+        return (
+            cls.select(*selection)
+            .where(cls.match(FTS5Model.clean_query(term)))
+            .order_by(order_by)
+        )
 
     @classmethod
     def _fts_cmd_sql(cls, cmd, **extra_params):
@@ -710,12 +781,15 @@ class FTS5Model(BaseFTSModel):
             columns.append(Entity(key))
             values.append(value)
 
-        return NodeList((
-            SQL('INSERT INTO'),
-            cls._meta.entity,
-            EnclosedNodeList(columns),
-            SQL('VALUES'),
-            EnclosedNodeList(values)))
+        return NodeList(
+            (
+                SQL('INSERT INTO'),
+                cls._meta.entity,
+                EnclosedNodeList(columns),
+                SQL('VALUES'),
+                EnclosedNodeList(values),
+            )
+        )
 
     @classmethod
     def _fts_cmd(cls, cmd, **extra_params):
@@ -759,18 +833,20 @@ class FTS5Model(BaseFTSModel):
     @classmethod
     def VocabModel(cls, table_type='row', table=None):
         if table_type not in ('row', 'col', 'instance'):
-            raise ValueError('table_type must be either "row", "col" or '
-                             '"instance".')
+            raise ValueError(
+                'table_type must be either "row", "col" or ' '"instance".'
+            )
 
         attr = '_vocab_model_%s' % table_type
 
         if not hasattr(cls, attr):
+
             class Meta:
                 database = cls._meta.database
                 table_name = table or cls._meta.table_name + '_v'
                 extension_module = fn.fts5vocab(
-                    cls._meta.entity,
-                    SQL(table_type))
+                    cls._meta.entity, SQL(table_type)
+                )
 
             attrs = {
                 'term': VirtualField(TextField),
@@ -790,8 +866,9 @@ class FTS5Model(BaseFTSModel):
         return getattr(cls, attr)
 
 
-def ClosureTable(model_class, foreign_key=None, referencing_class=None,
-                 referencing_key=None):
+def ClosureTable(
+    model_class, foreign_key=None, referencing_class=None, referencing_key=None
+):
     """Model factory for the transitive closure extension."""
     if referencing_class is None:
         referencing_class = model_class
@@ -821,11 +898,12 @@ def ClosureTable(model_class, foreign_key=None, referencing_class=None,
 
         @classmethod
         def descendants(cls, node, depth=None, include_node=False):
-            query = (model_class
-                     .select(model_class, cls.depth.alias('depth'))
-                     .join(cls, on=(source_key == cls.id))
-                     .where(cls.root == node)
-                     .objects())
+            query = (
+                model_class.select(model_class, cls.depth.alias('depth'))
+                .join(cls, on=(source_key == cls.id))
+                .where(cls.root == node)
+                .objects()
+            )
             if depth is not None:
                 query = query.where(cls.depth == depth)
             elif not include_node:
@@ -834,11 +912,12 @@ def ClosureTable(model_class, foreign_key=None, referencing_class=None,
 
         @classmethod
         def ancestors(cls, node, depth=None, include_node=False):
-            query = (model_class
-                     .select(model_class, cls.depth.alias('depth'))
-                     .join(cls, on=(source_key == cls.root))
-                     .where(cls.id == node)
-                     .objects())
+            query = (
+                model_class.select(model_class, cls.depth.alias('depth'))
+                .join(cls, on=(source_key == cls.root))
+                .where(cls.id == node)
+                .objects()
+            )
             if depth:
                 query = query.where(cls.depth == depth)
             elif not include_node:
@@ -853,16 +932,18 @@ def ClosureTable(model_class, foreign_key=None, referencing_class=None,
                 query = model_class.select().where(foreign_key == fk_value)
             else:
                 # siblings as given in reference_class
-                siblings = (referencing_class
-                            .select(referencing_key)
-                            .join(cls, on=(foreign_key == cls.root))
-                            .where((cls.id == node) & (cls.depth == 1)))
+                siblings = (
+                    referencing_class.select(referencing_key)
+                    .join(cls, on=(foreign_key == cls.root))
+                    .where((cls.id == node) & (cls.depth == 1))
+                )
 
                 # the according models
-                query = (model_class
-                         .select()
-                         .where(source_key << siblings)
-                         .objects())
+                query = (
+                    model_class.select()
+                    .where(source_key << siblings)
+                    .objects()
+                )
 
             if not include_node:
                 query = query.where(source_key != node)
@@ -874,7 +955,8 @@ def ClosureTable(model_class, foreign_key=None, referencing_class=None,
         options = {
             'tablename': referencing_class._meta.table_name,
             'idcolumn': referencing_key.column_name,
-            'parentcolumn': foreign_key.column_name}
+            'parentcolumn': foreign_key.column_name,
+        }
         primary_key = False
 
     name = '%sClosure' % model_class.__name__
@@ -890,8 +972,10 @@ class LSMTable(VirtualModel):
     def clean_options(cls, options):
         filename = cls._meta.filename
         if not filename:
-            raise ValueError('LSM1 extension requires that you specify a '
-                             'filename for the LSM database.')
+            raise ValueError(
+                'LSM1 extension requires that you specify a '
+                'filename for the LSM database.'
+            )
         else:
             if len(filename) >= 2 and filename[0] != '"':
                 filename = '"%s"' % filename
@@ -900,11 +984,13 @@ class LSMTable(VirtualModel):
 
         key = cls._meta.primary_key
         if isinstance(key, AutoField):
-            raise ValueError('LSM1 models must explicitly declare a primary '
-                             'key field.')
+            raise ValueError(
+                'LSM1 models must explicitly declare a primary ' 'key field.'
+            )
         if not isinstance(key, (TextField, BlobField, IntegerField)):
-            raise ValueError('LSM1 key must be a TextField, BlobField, or '
-                             'IntegerField.')
+            raise ValueError(
+                'LSM1 key must be a TextField, BlobField, or ' 'IntegerField.'
+            )
         key._hidden = True
         if isinstance(key, IntegerField):
             data_type = 'UINT'
@@ -950,9 +1036,8 @@ class LSMTable(VirtualModel):
     @classmethod
     def get_by_id(cls, pk):
         query, is_single = cls._apply_lookup_to_query(
-            cls.select().namedtuples(),
-            cls._meta.primary_key,
-            pk)
+            cls.select().namedtuples(), cls._meta.primary_key, pk
+        )
 
         if is_single:
             row = query.get()
@@ -978,29 +1063,40 @@ class LSMTable(VirtualModel):
     @classmethod
     def delete_by_id(cls, pk):
         query, is_single = cls._apply_lookup_to_query(
-            cls.delete(),
-            cls._meta.primary_key,
-            pk)
+            cls.delete(), cls._meta.primary_key, pk
+        )
         return query.execute()
 
 
 OP.MATCH = 'MATCH'
+
 
 def _sqlite_regexp(regex, value):
     return re.search(regex, value) is not None
 
 
 class SqliteExtDatabase(SqliteDatabase):
-    def __init__(self, database, c_extensions=None, rank_functions=True,
-                 hash_functions=False, regexp_function=False,
-                 bloomfilter=False, json_contains=False, *args, **kwargs):
+    def __init__(
+        self,
+        database,
+        c_extensions=None,
+        rank_functions=True,
+        hash_functions=False,
+        regexp_function=False,
+        bloomfilter=False,
+        json_contains=False,
+        *args,
+        **kwargs
+    ):
         super(SqliteExtDatabase, self).__init__(database, *args, **kwargs)
         self._row_factory = None
 
         if c_extensions and not CYTHON_SQLITE_EXTENSIONS:
-            raise ImproperlyConfigured('SqliteExtDatabase initialized with '
-                                       'C extensions, but shared library was '
-                                       'not found!')
+            raise ImproperlyConfigured(
+                'SqliteExtDatabase initialized with '
+                'C extensions, but shared library was '
+                'not found!'
+            )
         prefer_c = CYTHON_SQLITE_EXTENSIONS and (c_extensions is not False)
         if rank_functions:
             if prefer_c:
@@ -1012,8 +1108,9 @@ class SqliteExtDatabase(SqliteDatabase):
                 self.register_function(bm25, 'fts_lucene')
         if hash_functions:
             if not prefer_c:
-                raise ValueError('C extension required to register hash '
-                                 'functions.')
+                raise ValueError(
+                    'C extension required to register hash ' 'functions.'
+                )
             register_hash_functions(self)
         if regexp_function:
             self.register_function(_sqlite_regexp, 'regexp', 2)
@@ -1057,16 +1154,18 @@ if CYTHON_SQLITE_EXTENSIONS:
     SQLITE_DBSTATUS_CACHE_MISS = 8
     SQLITE_DBSTATUS_CACHE_WRITE = 9
     SQLITE_DBSTATUS_DEFERRED_FKS = 10
-    #SQLITE_DBSTATUS_CACHE_USED_SHARED = 11
+    # SQLITE_DBSTATUS_CACHE_USED_SHARED = 11
 
     def __status__(flag, return_highwater=False):
         """
         Expose a sqlite3_status() call for a particular flag as a property of
         the Database object.
         """
+
         def getter(self):
             result = sqlite_get_status(flag)
             return result[1] if return_highwater else result
+
         return property(getter)
 
     def __dbstatus__(flag, return_highwater=False, return_current=False):
@@ -1075,6 +1174,7 @@ if CYTHON_SQLITE_EXTENSIONS:
         the Database instance. Unlike sqlite3_status(), the dbstatus properties
         pertain to the current connection.
         """
+
         def getter(self):
             if self._state.conn is None:
                 raise ImproperlyConfigured('database connection not opened.')
@@ -1082,6 +1182,7 @@ if CYTHON_SQLITE_EXTENSIONS:
             if return_current:
                 return result[0]
             return result[1] if return_highwater else result
+
         return property(getter)
 
     class CSqliteExtDatabase(SqliteExtDatabase):
@@ -1147,13 +1248,24 @@ if CYTHON_SQLITE_EXTENSIONS:
             return self._conn_helper.autocommit()
 
         def backup(self, destination, pages=None, name=None, progress=None):
-            return backup(self.connection(), destination.connection(),
-                          pages=pages, name=name, progress=progress)
+            return backup(
+                self.connection(),
+                destination.connection(),
+                pages=pages,
+                name=name,
+                progress=progress,
+            )
 
-        def backup_to_file(self, filename, pages=None, name=None,
-                           progress=None):
-            return backup_to_file(self.connection(), filename, pages=pages,
-                                  name=name, progress=progress)
+        def backup_to_file(
+            self, filename, pages=None, name=None, progress=None
+        ):
+            return backup_to_file(
+                self.connection(),
+                filename,
+                pages=pages,
+                name=name,
+                progress=progress,
+            )
 
         def blob_open(self, table, column, rowid, read_only=False):
             return Blob(self, table, column, rowid, read_only)
@@ -1172,12 +1284,14 @@ if CYTHON_SQLITE_EXTENSIONS:
         # Connection status properties.
         lookaside_used = __dbstatus__(SQLITE_DBSTATUS_LOOKASIDE_USED)
         lookaside_hit = __dbstatus__(SQLITE_DBSTATUS_LOOKASIDE_HIT, True)
-        lookaside_miss = __dbstatus__(SQLITE_DBSTATUS_LOOKASIDE_MISS_SIZE,
-                                      True)
-        lookaside_miss_full = __dbstatus__(SQLITE_DBSTATUS_LOOKASIDE_MISS_FULL,
-                                           True)
+        lookaside_miss = __dbstatus__(
+            SQLITE_DBSTATUS_LOOKASIDE_MISS_SIZE, True
+        )
+        lookaside_miss_full = __dbstatus__(
+            SQLITE_DBSTATUS_LOOKASIDE_MISS_FULL, True
+        )
         cache_used = __dbstatus__(SQLITE_DBSTATUS_CACHE_USED, False, True)
-        #cache_used_shared = __dbstatus__(SQLITE_DBSTATUS_CACHE_USED_SHARED,
+        # cache_used_shared = __dbstatus__(SQLITE_DBSTATUS_CACHE_USED_SHARED,
         #                                 False, True)
         schema_used = __dbstatus__(SQLITE_DBSTATUS_SCHEMA_USED, False, True)
         statement_used = __dbstatus__(SQLITE_DBSTATUS_STMT_USED, False, True)
@@ -1189,10 +1303,14 @@ if CYTHON_SQLITE_EXTENSIONS:
 def match(lhs, rhs):
     return Expression(lhs, OP.MATCH, rhs)
 
+
 def _parse_match_info(buf):
     # See http://sqlite.org/fts3.html#matchinfo
     bufsize = len(buf)  # Length in bytes.
-    return [struct.unpack('@I', buf[i:i+4])[0] for i in range(0, bufsize, 4)]
+    return [
+        struct.unpack('@I', buf[i : i + 4])[0] for i in range(0, bufsize, 4)
+    ]
+
 
 def get_weights(ncol, raw_weights):
     if not raw_weights:
@@ -1202,6 +1320,7 @@ def get_weights(ncol, raw_weights):
         for i, weight in enumerate(raw_weights):
             weights[i] = weight
     return weights
+
 
 # Ranking implementation, which parse matchinfo.
 def rank(raw_match_info, *raw_weights):
@@ -1238,6 +1357,7 @@ def rank(raw_match_info, *raw_weights):
                 score += weight * (float(row_hits) / all_rows_hits)
 
     return -score
+
 
 # Okapi BM25 ranking implementation (FTS4 only).
 def bm25(raw_match_info, *args):
@@ -1302,13 +1422,13 @@ def bm25(raw_match_info, *args):
 
             # log( (N - n(qi) + 0.5) / (n(qi) + 0.5) )
             idf = math.log(
-                    (total_docs - docs_with_term + 0.5) /
-                    (docs_with_term + 0.5))
+                (total_docs - docs_with_term + 0.5) / (docs_with_term + 0.5)
+            )
             if idf <= 0.0:
                 idf = 1e-6
 
             doc_length = float(match_info[L_O + j])  # |D|
-            avg_length = float(match_info[A_O + j]) or 1.  # avgdl
+            avg_length = float(match_info[A_O + j]) or 1.0  # avgdl
             ratio = doc_length / avg_length
 
             num = term_frequency * (K + 1.0)
@@ -1316,7 +1436,7 @@ def bm25(raw_match_info, *args):
             denom = term_frequency + (K * b_part)
 
             pc_score = idf * (num / denom)
-            score += (pc_score * weight)
+            score += pc_score * weight
 
     return -score
 

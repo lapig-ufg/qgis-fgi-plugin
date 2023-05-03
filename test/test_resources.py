@@ -5,7 +5,6 @@
      it under the terms of the GNU General Public License as published by
      the Free Software Foundation; either version 2 of the License, or
      (at your option) any later version.
-
 """
 
 __author__ = 'irtharles@gmail.com'
@@ -15,7 +14,6 @@ __copyright__ = 'Copyright 2022, Tharles de Sousa Andrade | LAPIG - UFG'
 import unittest
 
 from qgis.PyQt.QtGui import QIcon
-
 
 
 class GlobalInspectionTilesDialogTest(unittest.TestCase):
@@ -35,10 +33,8 @@ class GlobalInspectionTilesDialogTest(unittest.TestCase):
         icon = QIcon(path)
         self.assertFalse(icon.isNull())
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     suite = unittest.makeSuite(GlobalInspectionTilesResourcesTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-
-
-

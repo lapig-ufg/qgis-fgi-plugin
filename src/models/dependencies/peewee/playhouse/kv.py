@@ -1,9 +1,9 @@
 import operator
 
 from peewee import *
-from peewee import sqlite3
-from peewee import Expression
+from peewee import Expression, sqlite3
 from playhouse.fields import PickleField
+
 try:
     from playhouse.sqlite_ext import CSqliteExtDatabase as SqliteExtDatabase
 except ImportError:
@@ -23,8 +23,15 @@ class KeyValue(object):
     :param Database database: database where key/value data is stored.
     :param str table_name: table name for data.
     """
-    def __init__(self, key_field=None, value_field=None, ordered=False,
-                 database=None, table_name='keyvalue'):
+
+    def __init__(
+        self,
+        key_field=None,
+        value_field=None,
+        ordered=False,
+        database=None,
+        table_name='keyvalue',
+    ):
         if key_field is None:
             key_field = CharField(max_length=255, primary_key=True)
         if not key_field.primary_key:
@@ -38,9 +45,12 @@ class KeyValue(object):
         self._ordered = ordered
         self._database = database or SqliteExtDatabase(':memory:')
         self._table_name = table_name
-        support_on_conflict = (isinstance(self._database, PostgresqlDatabase) or
-                              (isinstance(self._database, SqliteDatabase) and
-                               self._database.server_version >= (3, 24)))
+        support_on_conflict = isinstance(
+            self._database, PostgresqlDatabase
+        ) or (
+            isinstance(self._database, SqliteDatabase)
+            and self._database.server_version >= (3, 24)
+        )
         if support_on_conflict:
             self.upsert = self._postgres_upsert
             self.update = self._postgres_update
@@ -59,9 +69,11 @@ class KeyValue(object):
         class KeyValue(Model):
             key = self._key_field
             value = self._value_field
+
             class Meta:
                 database = self._database
                 table_name = self._table_name
+
         return KeyValue
 
     def query(self, *select):
@@ -94,17 +106,18 @@ class KeyValue(object):
         return result
 
     def _upsert(self, key, value):
-        (self.model
-         .insert(key=key, value=value)
-         .on_conflict('replace')
-         .execute())
+        (
+            self.model.insert(key=key, value=value)
+            .on_conflict('replace')
+            .execute()
+        )
 
     def _postgres_upsert(self, key, value):
-        (self.model
-         .insert(key=key, value=value)
-         .on_conflict(conflict_target=[self.key],
-                      preserve=[self.value])
-         .execute())
+        (
+            self.model.insert(key=key, value=value)
+            .on_conflict(conflict_target=[self.key], preserve=[self.value])
+            .execute()
+        )
 
     def __setitem__(self, expr, value):
         if isinstance(expr, Expression):
@@ -131,21 +144,24 @@ class KeyValue(object):
     def _update(self, __data=None, **mapping):
         if __data is not None:
             mapping.update(__data)
-        return (self.model
-                .insert_many(list(mapping.items()),
-                             fields=[self.key, self.value])
-                .on_conflict('replace')
-                .execute())
+        return (
+            self.model.insert_many(
+                list(mapping.items()), fields=[self.key, self.value]
+            )
+            .on_conflict('replace')
+            .execute()
+        )
 
     def _postgres_update(self, __data=None, **mapping):
         if __data is not None:
             mapping.update(__data)
-        return (self.model
-                .insert_many(list(mapping.items()),
-                             fields=[self.key, self.value])
-                .on_conflict(conflict_target=[self.key],
-                             preserve=[self.value])
-                .execute())
+        return (
+            self.model.insert_many(
+                list(mapping.items()), fields=[self.key, self.value]
+            )
+            .on_conflict(conflict_target=[self.key], preserve=[self.value])
+            .execute()
+        )
 
     def get(self, key, default=None):
         try:

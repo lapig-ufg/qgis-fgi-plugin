@@ -33,4 +33,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     """
     #
     from .global_inspection import GlobalInspectionTiles
+
     return GlobalInspectionTiles(iface)

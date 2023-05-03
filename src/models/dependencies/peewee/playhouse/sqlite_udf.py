@@ -8,6 +8,7 @@ import re
 import sys
 import threading
 import zlib
+
 try:
     from collections import Counter
 except ImportError:
@@ -29,12 +30,15 @@ SQLITE_DATETIME_FORMATS = (
     '%Y-%m-%d',
     '%H:%M:%S',
     '%H:%M:%S.%f',
-    '%H:%M')
+    '%H:%M',
+)
 
 from peewee import format_date_time
 
+
 def format_date_time_sqlite(date_value):
     return format_date_time(date_value, SQLITE_DATETIME_FORMATS)
+
 
 try:
     from playhouse import _sqlite_udf as cython_udf
@@ -83,7 +87,9 @@ def aggregate(*groups):
             AGGREGATE_COLLECTION.setdefault(group, [])
             AGGREGATE_COLLECTION[group].append(klass)
         return klass
+
     return decorator
+
 
 def table_function(*groups):
     def decorator(klass):
@@ -91,7 +97,9 @@ def table_function(*groups):
             TABLE_FUNCTION_COLLECTION.setdefault(group, [])
             TABLE_FUNCTION_COLLECTION[group].append(klass)
         return klass
+
     return decorator
+
 
 def udf(*groups):
     def decorator(fn):
@@ -99,7 +107,9 @@ def udf(*groups):
             UDF_COLLECTION.setdefault(group, [])
             UDF_COLLECTION[group].append(fn)
         return fn
+
     return decorator
+
 
 # Register aggregates / functions with connection.
 def register_aggregate_groups(db, *groups):
@@ -112,6 +122,7 @@ def register_aggregate_groups(db, *groups):
                 seen.add(name)
                 db.register_aggregate(klass, name)
 
+
 def register_table_function_groups(db, *groups):
     seen = set()
     for group in groups:
@@ -120,6 +131,7 @@ def register_table_function_groups(db, *groups):
             if klass.name not in seen:
                 seen.add(klass.name)
                 db.register_table_function(klass)
+
 
 def register_udf_groups(db, *groups):
     seen = set()
@@ -131,10 +143,12 @@ def register_udf_groups(db, *groups):
                 seen.add(name)
                 db.register_function(function, name)
 
+
 def register_groups(db, *groups):
     register_aggregate_groups(db, *groups)
     register_table_function_groups(db, *groups)
     register_udf_groups(db, *groups)
+
 
 def register_all(db):
     register_aggregate_groups(db, *AGGREGATE_COLLECTION)
@@ -151,6 +165,7 @@ def if_then_else(cond, truthy, falsey=None):
         return truthy
     return falsey
 
+
 @udf(DATE)
 def strip_tz(date_str):
     date_str = date_str.replace('T', ' ')
@@ -161,6 +176,7 @@ def strip_tz(date_str):
     if tz_idx2 > 13:
         return date_str[:tz_idx2]
     return date_str
+
 
 @udf(DATE)
 def human_delta(nseconds, glue=', '):
@@ -183,6 +199,7 @@ def human_delta(nseconds, glue=', '):
         return '0 seconds'
     return glue.join(accum)
 
+
 @udf(FILE)
 def file_ext(filename):
     try:
@@ -190,6 +207,7 @@ def file_ext(filename):
     except ValueError:
         return None
     return res[1]
+
 
 @udf(FILE)
 def file_read(filename):
@@ -199,7 +217,9 @@ def file_read(filename):
     except:
         pass
 
+
 if sys.version_info[0] == 2:
+
     @udf(HELPER)
     def gzip(data, compression=9):
         return buffer(zlib.compress(data, compression))
@@ -207,7 +227,9 @@ if sys.version_info[0] == 2:
     @udf(HELPER)
     def gunzip(data):
         return zlib.decompress(data)
+
 else:
+
     @udf(HELPER)
     def gzip(data, compression=9):
         if isinstance(data, str):
@@ -218,17 +240,20 @@ else:
     def gunzip(data):
         return zlib.decompress(data)
 
+
 @udf(HELPER)
 def hostname(url):
     parse_result = urlparse(url)
     if parse_result:
         return parse_result.netloc
 
+
 @udf(HELPER)
 def toggle(key):
     key = key.lower()
     STATE[key] = ret = not STATE.get(key)
     return ret
+
 
 @udf(HELPER)
 def setting(key, value=None):
@@ -238,13 +263,16 @@ def setting(key, value=None):
         SETTINGS[key] = value
         return value
 
+
 @udf(HELPER)
 def clear_settings():
     SETTINGS.clear()
 
+
 @udf(HELPER)
 def clear_toggles():
     STATE.clear()
+
 
 @udf(MATH)
 def randomrange(start, end=None, step=None):
@@ -254,6 +282,7 @@ def randomrange(start, end=None, step=None):
         step = 1
     return random.randrange(start, end, step)
 
+
 @udf(MATH)
 def gauss_distribution(mean, sigma):
     try:
@@ -261,12 +290,14 @@ def gauss_distribution(mean, sigma):
     except ValueError:
         return None
 
+
 @udf(MATH)
 def sqrt(n):
     try:
         return math.sqrt(n)
     except ValueError:
         return None
+
 
 @udf(MATH)
 def tonumber(s):
@@ -278,21 +309,25 @@ def tonumber(s):
         except:
             return None
 
+
 @udf(STRING)
 def substr_count(haystack, needle):
     if not haystack or not needle:
         return 0
     return haystack.count(needle)
 
+
 @udf(STRING)
 def strip_chars(haystack, chars):
     return haystack.strip(chars)
+
 
 def _hash(constructor, *args):
     hash_obj = constructor()
     for arg in args:
         hash_obj.update(arg)
     return hash_obj.hexdigest()
+
 
 # Aggregates.
 class _heap_agg(object):
@@ -307,17 +342,20 @@ class _heap_agg(object):
         self.ct += 1
         heapq.heappush(self.heap, self.process(value))
 
+
 class _datetime_heap_agg(_heap_agg):
     def process(self, value):
         return format_date_time_sqlite(value)
 
+
 if sys.version_info[:2] == (2, 6):
+
     def total_seconds(td):
-        return (td.seconds +
-                (td.days * 86400) +
-                (td.microseconds / (10.**6)))
+        return td.seconds + (td.days * 86400) + (td.microseconds / (10.0**6))
+
 else:
     total_seconds = lambda td: td.total_seconds()
+
 
 @aggregate(DATE)
 class mintdiff(_datetime_heap_agg):
@@ -335,6 +373,7 @@ class mintdiff(_datetime_heap_agg):
             dtp = dt
         if min_diff is not None:
             return total_seconds(min_diff)
+
 
 @aggregate(DATE)
 class avgtdiff(_datetime_heap_agg):
@@ -360,6 +399,7 @@ class avgtdiff(_datetime_heap_agg):
 
         return float(total) / ct
 
+
 @aggregate(DATE)
 class duration(object):
     def __init__(self):
@@ -374,13 +414,15 @@ class duration(object):
 
     def finalize(self):
         if self._min and self._max:
-            td = (self._max - self._min)
+            td = self._max - self._min
             return total_seconds(td)
         return None
+
 
 @aggregate(MATH)
 class mode(object):
     if Counter:
+
         def __init__(self):
             self.items = Counter()
 
@@ -390,7 +432,9 @@ class mode(object):
         def finalize(self):
             if self.items:
                 return self.items.most_common(1)[0][0]
+
     else:
+
         def __init__(self):
             self.items = []
 
@@ -400,6 +444,7 @@ class mode(object):
         def finalize(self):
             if self.items:
                 return max(set(self.items), key=self.items.count)
+
 
 @aggregate(MATH)
 class minrange(_heap_agg):
@@ -422,6 +467,7 @@ class minrange(_heap_agg):
                 min_diff = diff
             prev = curr
         return min_diff
+
 
 @aggregate(MATH)
 class avgrange(_heap_agg):
@@ -447,6 +493,7 @@ class avgrange(_heap_agg):
 
         return float(total) / ct
 
+
 @aggregate(MATH)
 class _range(object):
     name = 'range'
@@ -465,19 +512,24 @@ class _range(object):
             return self._max - self._min
         return None
 
+
 @aggregate(MATH)
 class stddev(object):
     def __init__(self):
         self.n = 0
         self.values = []
+
     def step(self, v):
         self.n += 1
         self.values.append(v)
+
     def finalize(self):
         if self.n <= 1:
             return 0
         mean = sum(self.values) / self.n
-        return math.sqrt(sum((i - mean) ** 2 for i in self.values) / (self.n - 1))
+        return math.sqrt(
+            sum((i - mean) ** 2 for i in self.values) / (self.n - 1)
+        )
 
 
 if cython_udf is not None:
@@ -488,6 +540,7 @@ if cython_udf is not None:
 
 
 if TableFunction is not None:
+
     @table_function(STRING)
     class RegexSearch(TableFunction):
         params = ['regex', 'search_string']
@@ -512,18 +565,22 @@ if TableFunction is not None:
             step_seconds = int(step_seconds)
             self.step_seconds = datetime.timedelta(seconds=step_seconds)
 
-            if (self.start.hour == 0 and
-                self.start.minute == 0 and
-                self.start.second == 0 and
-                step_seconds >= 86400):
+            if (
+                self.start.hour == 0
+                and self.start.minute == 0
+                and self.start.second == 0
+                and step_seconds >= 86400
+            ):
                 self.format = '%Y-%m-%d'
-            elif (self.start.year == 1900 and
-                  self.start.month == 1 and
-                  self.start.day == 1 and
-                  self.stop.year == 1900 and
-                  self.stop.month == 1 and
-                  self.stop.day == 1 and
-                  step_seconds < 86400):
+            elif (
+                self.start.year == 1900
+                and self.start.month == 1
+                and self.start.day == 1
+                and self.stop.year == 1900
+                and self.stop.month == 1
+                and self.stop.day == 1
+                and step_seconds < 86400
+            ):
                 self.format = '%H:%M:%S'
             else:
                 self.format = '%Y-%m-%d %H:%M:%S'

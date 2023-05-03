@@ -7,8 +7,8 @@ import zlib
 from peewee import *
 from playhouse.sqlite_ext import *
 
-
 db = SqliteExtDatabase(':memory:')
+
 
 class SearchIndex(FTSModel):
     content = SearchField()
@@ -24,6 +24,7 @@ def _zlib_compress(data):
             data = data.encode('utf8')
         return zlib.compress(data, 9)
 
+
 @db.func('zlib_decompress')
 def _zlib_decompress(data):
     if data is not None:
@@ -31,20 +32,28 @@ def _zlib_decompress(data):
 
 
 SearchIndex.create_table(
-    tokenize='porter',
-    compress='zlib_compress',
-    uncompress='zlib_decompress')
+    tokenize='porter', compress='zlib_compress', uncompress='zlib_decompress'
+)
 
 phrases = [
     'A faith is a necessity to a man. Woe to him who believes in nothing.',
-    ('All who call on God in true faith, earnestly from the heart, will '
-     'certainly be heard, and will receive what they have asked and desired.'),
-    ('Be faithful in small things because it is in them that your strength '
-     'lies.'),
-    ('Faith consists in believing when it is beyond the power of reason to '
-     'believe.'),
-    ('Faith has to do with things that are not seen and hope with things that '
-     'are not at hand.')]
+    (
+        'All who call on God in true faith, earnestly from the heart, will '
+        'certainly be heard, and will receive what they have asked and desired.'
+    ),
+    (
+        'Be faithful in small things because it is in them that your strength '
+        'lies.'
+    ),
+    (
+        'Faith consists in believing when it is beyond the power of reason to '
+        'believe.'
+    ),
+    (
+        'Faith has to do with things that are not seen and hope with things that '
+        'are not at hand.'
+    ),
+]
 
 for phrase in phrases:
     SearchIndex.create(content=phrase)

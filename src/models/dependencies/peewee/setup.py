@@ -2,11 +2,14 @@ import os
 import platform
 import sys
 import warnings
+
 try:
     from distutils.command.build_ext import build_ext
-    from distutils.errors import CCompilerError
-    from distutils.errors import DistutilsExecError
-    from distutils.errors import DistutilsPlatformError
+    from distutils.errors import (
+        CCompilerError,
+        DistutilsExecError,
+        DistutilsPlatformError,
+    )
 except ImportError:
     from setuptools._distutils.command.build_ext import build_ext
     from setuptools._distutils.errors import CCompilerError
@@ -51,27 +54,33 @@ else:
     cythonize = lambda obj: obj
 
 sqlite_udf_module = Extension(
-    'playhouse._sqlite_udf',
-    ['playhouse/_sqlite_udf' + src_ext])
+    'playhouse._sqlite_udf', ['playhouse/_sqlite_udf' + src_ext]
+)
 sqlite_ext_module = Extension(
     'playhouse._sqlite_ext',
     ['playhouse/_sqlite_ext' + src_ext],
-    libraries=['sqlite3'])
+    libraries=['sqlite3'],
+)
 
 
 def _have_sqlite_extension_support():
     import shutil
     import tempfile
+
     try:
         from distutils.ccompiler import new_compiler
         from distutils.sysconfig import customize_compiler
     except ImportError:
-        from setuptools.command.build_ext import customize_compiler
-        from setuptools.command.build_ext import new_compiler
+        from setuptools.command.build_ext import (
+            customize_compiler,
+            new_compiler,
+        )
 
     libraries = ['sqlite3']
-    c_code = ('#include <sqlite3.h>\n\n'
-              'int main(int argc, char **argv) { return 0; }')
+    c_code = (
+        '#include <sqlite3.h>\n\n'
+        'int main(int argc, char **argv) { return 0; }'
+    )
     tmp_dir = tempfile.mkdtemp(prefix='tmp_pw_sqlite3_')
     bin_file = os.path.join(tmp_dir, 'test_pw_sqlite3')
     src_file = bin_file + '.c'
@@ -85,7 +94,8 @@ def _have_sqlite_extension_support():
         compiler.link_shared_object(
             compiler.compile([src_file], output_dir=tmp_dir),
             bin_file,
-            libraries=['sqlite3'])
+            libraries=['sqlite3'],
+        )
     except CCompilerError:
         print('unable to compile sqlite3 C extensions - missing headers?')
     except DistutilsExecError:
@@ -107,13 +117,17 @@ if extension_support:
     if os.environ.get('NO_SQLITE'):
         warnings.warn('SQLite extensions will not be built at users request.')
     elif not _have_sqlite_extension_support():
-        warnings.warn('Could not find libsqlite3, SQLite extensions will not '
-                      'be built.')
+        warnings.warn(
+            'Could not find libsqlite3, SQLite extensions will not '
+            'be built.'
+        )
     else:
         sqlite_extension_support = True
 
 # Exception we will raise to indicate a failure to build C extensions.
-class BuildFailure(Exception): pass
+class BuildFailure(Exception):
+    pass
+
 
 class _PeeweeBuildExt(build_ext):
     def run(self):
@@ -127,6 +141,7 @@ class _PeeweeBuildExt(build_ext):
             build_ext.build_extension(self, ext)
         except (CCompilerError, DistutilsExecError, DistutilsPlatformError):
             raise BuildFailure()
+
 
 def _do_setup(c_extensions, sqlite_extensions):
     if c_extensions and sqlite_extensions:
@@ -173,11 +188,13 @@ def _do_setup(c_extensions, sqlite_extensions):
         platforms=['any'],
         project_urls={
             'Documentation': 'http://docs.peewee-orm.com',
-            'Source': 'https://github.com/coleifer/peewee'},
+            'Source': 'https://github.com/coleifer/peewee',
+        },
         scripts=['pwiz.py'],
         zip_safe=False,
         cmdclass={'build_ext': _PeeweeBuildExt},
-        ext_modules=cythonize(ext_modules))
+        ext_modules=cythonize(ext_modules),
+    )
 
 
 if extension_support:

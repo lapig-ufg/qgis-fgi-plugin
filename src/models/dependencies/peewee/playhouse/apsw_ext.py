@@ -17,16 +17,14 @@ Here are just a few reasons to use APSW, taken from the documentation:
 * APSW is faster.
 """
 import apsw
-from peewee import *
-from peewee import __exception_wrapper__
 from peewee import BooleanField as _BooleanField
 from peewee import DateField as _DateField
 from peewee import DateTimeField as _DateTimeField
 from peewee import DecimalField as _DecimalField
+from peewee import *
 from peewee import Insert
 from peewee import TimeField as _TimeField
-from peewee import logger
-
+from peewee import __exception_wrapper__, logger
 from playhouse.sqlite_ext import SqliteExtDatabase
 
 
@@ -43,7 +41,7 @@ class APSWDatabase(SqliteExtDatabase):
             self.connection().createmodule(mod_name, mod_inst)
 
     def unregister_module(self, mod_name):
-        del(self._modules[mod_name])
+        del self._modules[mod_name]
 
     def _connect(self):
         conn = apsw.Connection(self.database, **self.connect_params)
@@ -67,8 +65,10 @@ class APSWDatabase(SqliteExtDatabase):
 
     def _load_aggregates(self, conn):
         for name, (klass, num_params) in self._aggregates.items():
+
             def make_aggregate():
                 return (klass(), klass.step, klass.finalize)
+
             conn.createaggregatefunction(name, make_aggregate)
 
     def _load_collations(self, conn):
@@ -138,20 +138,25 @@ def nh(s, v):
     if v is not None:
         return str(v)
 
+
 class BooleanField(_BooleanField):
     def db_value(self, v):
         v = super(BooleanField, self).db_value(v)
         if v is not None:
             return v and 1 or 0
 
+
 class DateField(_DateField):
     db_value = nh
+
 
 class TimeField(_TimeField):
     db_value = nh
 
+
 class DateTimeField(_DateTimeField):
     db_value = nh
+
 
 class DecimalField(_DecimalField):
     db_value = nh

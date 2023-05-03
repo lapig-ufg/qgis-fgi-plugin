@@ -1,10 +1,10 @@
-import sys
-from xmltodict import parse, unparse
-from collections import OrderedDict
-
-import unittest
 import re
+import sys
+import unittest
+from collections import OrderedDict
 from textwrap import dedent
+
+from xmltodict import parse, unparse
 
 IS_JYTHON = sys.platform.startswith('java')
 
@@ -47,21 +47,34 @@ class DictToXMLTestCase(unittest.TestCase):
         self.assertEqual(unparse(obj), unparse(parse(unparse(obj))))
 
     def test_list_expand_iter(self):
-        obj = {'a': {'b': [['1', '2'], ['3',]]}}
-        #self.assertEqual(obj, parse(unparse(obj, expand_iter="item")))
-        exp_xml = dedent('''\
+        obj = {
+            'a': {
+                'b': [
+                    ['1', '2'],
+                    [
+                        '3',
+                    ],
+                ]
+            }
+        }
+        # self.assertEqual(obj, parse(unparse(obj, expand_iter="item")))
+        exp_xml = dedent(
+            """\
         <?xml version="1.0" encoding="utf-8"?>
-        <a><b><item>1</item><item>2</item></b><b><item>3</item></b></a>''')
-        self.assertEqual(exp_xml, unparse(obj, expand_iter="item"))
+        <a><b><item>1</item><item>2</item></b><b><item>3</item></b></a>"""
+        )
+        self.assertEqual(exp_xml, unparse(obj, expand_iter='item'))
 
     def test_generator(self):
         obj = {'a': {'b': ['1', '2', '3']}}
 
         def lazy_obj():
             return {'a': {'b': (i for i in ('1', '2', '3'))}}
+
         self.assertEqual(obj, parse(unparse(lazy_obj())))
-        self.assertEqual(unparse(lazy_obj()),
-                         unparse(parse(unparse(lazy_obj()))))
+        self.assertEqual(
+            unparse(lazy_obj()), unparse(parse(unparse(lazy_obj())))
+        )
 
     def test_no_root(self):
         self.assertRaises(ValueError, unparse, {})
@@ -91,8 +104,7 @@ class DictToXMLTestCase(unittest.TestCase):
 
     def test_semistructured(self):
         xml = '<a>abc<d/>efg</a>'
-        self.assertEqual(_strip(unparse(parse(xml))),
-                         '<a><d></d>abcefg</a>')
+        self.assertEqual(_strip(unparse(parse(xml))), '<a><d></d>abcefg</a>')
 
     def test_preprocessor(self):
         obj = {'a': OrderedDict((('b:int', [1, 2]), ('b', 'c')))}
@@ -104,8 +116,10 @@ class DictToXMLTestCase(unittest.TestCase):
                 pass
             return key, value
 
-        self.assertEqual(_strip(unparse(obj, preprocessor=p)),
-                         '<a><b>1</b><b>2</b><b>c</b></a>')
+        self.assertEqual(
+            _strip(unparse(obj, preprocessor=p)),
+            '<a><b>1</b><b>2</b><b>c</b></a>',
+        )
 
     def test_preprocessor_skipkey(self):
         obj = {'a': {'b': 1, 'c': 2}}
@@ -115,8 +129,9 @@ class DictToXMLTestCase(unittest.TestCase):
                 return None
             return key, value
 
-        self.assertEqual(_strip(unparse(obj, preprocessor=p)),
-                         '<a><c>2</c></a>')
+        self.assertEqual(
+            _strip(unparse(obj, preprocessor=p)), '<a><c>2</c></a>'
+        )
 
     if not IS_JYTHON:
         # Jython's SAX does not preserve attribute order
@@ -125,13 +140,18 @@ class DictToXMLTestCase(unittest.TestCase):
             self.assertEqual(xml, _strip(unparse(parse(xml))))
 
     def test_pretty_print(self):
-        obj = {'a': OrderedDict((
-            ('b', [{'c': [1, 2]}, 3]),
-            ('x', 'y'),
-        ))}
+        obj = {
+            'a': OrderedDict(
+                (
+                    ('b', [{'c': [1, 2]}, 3]),
+                    ('x', 'y'),
+                )
+            )
+        }
         newl = '\n'
         indent = '....'
-        xml = dedent('''\
+        xml = dedent(
+            """\
         <?xml version="1.0" encoding="utf-8"?>
         <a>
         ....<b>
@@ -140,9 +160,11 @@ class DictToXMLTestCase(unittest.TestCase):
         ....</b>
         ....<b>3</b>
         ....<x>y</x>
-        </a>''')
-        self.assertEqual(xml, unparse(obj, pretty=True,
-                                      newl=newl, indent=indent))
+        </a>"""
+        )
+        self.assertEqual(
+            xml, unparse(obj, pretty=True, newl=newl, indent=indent)
+        )
 
     def test_encoding(self):
         try:
@@ -157,10 +179,12 @@ class DictToXMLTestCase(unittest.TestCase):
 
     def test_fulldoc(self):
         xml_declaration_re = re.compile(
-            '^' + re.escape('<?xml version="1.0" encoding="utf-8"?>'))
+            '^' + re.escape('<?xml version="1.0" encoding="utf-8"?>')
+        )
         self.assertTrue(xml_declaration_re.match(unparse({'a': 1})))
         self.assertFalse(
-            xml_declaration_re.match(unparse({'a': 1}, full_document=False)))
+            xml_declaration_re.match(unparse({'a': 1}, full_document=False))
+        )
 
     def test_non_string_value(self):
         obj = {'a': 1}
@@ -174,33 +198,52 @@ class DictToXMLTestCase(unittest.TestCase):
         if sys.version_info[0] < 3:
             return
         obj = {'a': None}
-        self.assertEqual('<a/>', _strip(unparse(obj, short_empty_elements=True)))
+        self.assertEqual(
+            '<a/>', _strip(unparse(obj, short_empty_elements=True))
+        )
 
     def test_namespace_support(self):
-        obj = OrderedDict((
-            ('http://defaultns.com/:root', OrderedDict((
-                ('@xmlns', OrderedDict((
-                    ('', 'http://defaultns.com/'),
-                    ('a', 'http://a.com/'),
-                    ('b', 'http://b.com/'),
-                ))),
-                ('http://defaultns.com/:x', OrderedDict((
-                    ('@http://a.com/:attr', 'val'),
-                    ('#text', '1'),
-                ))),
-                ('http://a.com/:y', '2'),
-                ('http://b.com/:z', '3'),
-            ))),
-        ))
+        obj = OrderedDict(
+            (
+                (
+                    'http://defaultns.com/:root',
+                    OrderedDict(
+                        (
+                            (
+                                '@xmlns',
+                                OrderedDict(
+                                    (
+                                        ('', 'http://defaultns.com/'),
+                                        ('a', 'http://a.com/'),
+                                        ('b', 'http://b.com/'),
+                                    )
+                                ),
+                            ),
+                            (
+                                'http://defaultns.com/:x',
+                                OrderedDict(
+                                    (
+                                        ('@http://a.com/:attr', 'val'),
+                                        ('#text', '1'),
+                                    )
+                                ),
+                            ),
+                            ('http://a.com/:y', '2'),
+                            ('http://b.com/:z', '3'),
+                        )
+                    ),
+                ),
+            )
+        )
         ns = {
             'http://defaultns.com/': '',
             'http://a.com/': 'a',
             'http://b.com/': 'b',
         }
 
-        expected_xml = '''<?xml version="1.0" encoding="utf-8"?>
+        expected_xml = """<?xml version="1.0" encoding="utf-8"?>
 <root xmlns="http://defaultns.com/" xmlns:a="http://a.com/" \
-xmlns:b="http://b.com/"><x a:attr="val">1</x><a:y>2</a:y><b:z>3</b:z></root>'''
+xmlns:b="http://b.com/"><x a:attr="val">1</x><a:y>2</a:y><b:z>3</b:z></root>"""
         xml = unparse(obj, namespaces=ns)
 
         self.assertEqual(xml, expected_xml)

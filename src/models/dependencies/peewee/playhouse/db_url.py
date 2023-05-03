@@ -4,14 +4,14 @@ except ImportError:
     from urllib.parse import parse_qsl, unquote, urlparse
 
 from peewee import *
-from playhouse.cockroachdb import CockroachDatabase
-from playhouse.cockroachdb import PooledCockroachDatabase
-from playhouse.pool import PooledMySQLDatabase
-from playhouse.pool import PooledPostgresqlDatabase
-from playhouse.pool import PooledSqliteDatabase
-from playhouse.pool import PooledSqliteExtDatabase
+from playhouse.cockroachdb import CockroachDatabase, PooledCockroachDatabase
+from playhouse.pool import (
+    PooledMySQLDatabase,
+    PooledPostgresqlDatabase,
+    PooledSqliteDatabase,
+    PooledSqliteExtDatabase,
+)
 from playhouse.sqlite_ext import SqliteExtDatabase
-
 
 schemes = {
     'cockroachdb': CockroachDatabase,
@@ -30,10 +30,12 @@ schemes = {
     'sqliteext+pool': PooledSqliteExtDatabase,
 }
 
+
 def register_database(db_class, *names):
     global schemes
     for name in names:
         schemes[name] = db_class
+
 
 def parseresult_to_dict(parsed, unquote_password=False):
 
@@ -84,9 +86,11 @@ def parseresult_to_dict(parsed, unquote_password=False):
 
     return connect_kwargs
 
+
 def parse(url, unquote_password=False):
     parsed = urlparse(url)
     return parseresult_to_dict(parsed, unquote_password)
+
 
 def connect(url, unquote_password=False, **connect_params):
     parsed = urlparse(url)
@@ -96,13 +100,17 @@ def connect(url, unquote_password=False, **connect_params):
 
     if database_class is None:
         if database_class in schemes:
-            raise RuntimeError('Attempted to use "%s" but a required library '
-                               'could not be imported.' % parsed.scheme)
+            raise RuntimeError(
+                'Attempted to use "%s" but a required library '
+                'could not be imported.' % parsed.scheme
+            )
         else:
-            raise RuntimeError('Unrecognized or unsupported scheme: "%s".' %
-                               parsed.scheme)
+            raise RuntimeError(
+                'Unrecognized or unsupported scheme: "%s".' % parsed.scheme
+            )
 
     return database_class(**connect_kwargs)
+
 
 # Conditionally register additional databases.
 try:
@@ -111,9 +119,8 @@ except ImportError:
     pass
 else:
     register_database(
-        PooledPostgresqlExtDatabase,
-        'postgresext+pool',
-        'postgresqlext+pool')
+        PooledPostgresqlExtDatabase, 'postgresext+pool', 'postgresqlext+pool'
+    )
 
 try:
     from playhouse.apsw_ext import APSWDatabase
