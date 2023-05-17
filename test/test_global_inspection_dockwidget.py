@@ -22,7 +22,7 @@ QGIS_APP = get_qgis_app()
 
 
 class GlobalInspectionTilesDockWidgetTest(unittest.TestCase):
-    """Test dockwidget works."""
+    """Test dock_widget works."""
 
     def setUp(self):
         """Runs before each test."""
