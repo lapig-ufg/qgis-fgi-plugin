@@ -69,7 +69,7 @@
     </item>
     <item>
      <layout class="QGridLayout" name="gridMain">
-      <item row="0" column="0">
+      <item row="1" column="0">
        <widget class="QTabWidget" name="tabWidget">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -87,7 +87,7 @@
          <cursorShape>ArrowCursor</cursorShape>
         </property>
         <property name="currentIndex">
-         <number>2</number>
+         <number>1</number>
         </property>
         <widget class="QWidget" name="tabConfig">
          <property name="minimumSize">
@@ -253,9 +253,9 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>10</y>
+            <y>0</y>
             <width>391</width>
-            <height>31</height>
+            <height>54</height>
            </rect>
           </property>
           <layout class="QHBoxLayout" name="layoutTilesControl">
@@ -263,7 +263,7 @@
             <widget class="QLabel" name="tileInfoBing">
              <property name="font">
               <font>
-               <pointsize>18</pointsize>
+               <pointsize>16</pointsize>
                <weight>75</weight>
                <italic>false</italic>
                <bold>true</bold>
@@ -418,32 +418,6 @@
            </rect>
           </property>
           <layout class="QGridLayout" name="gridPeriodBing">
-           <item row="1" column="1">
-            <widget class="QDateTimeEdit" name="bingEndDate">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="font">
-              <font>
-               <pointsize>12</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">color: blue;</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-             <property name="displayFormat">
-              <string>dd/MM/yyyy</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="0">
             <widget class="QDateTimeEdit" name="bingStartDate">
              <property name="sizePolicy">
@@ -554,6 +528,32 @@ border-radius: 3px</string>
              </property>
             </widget>
            </item>
+           <item row="1" column="1">
+            <widget class="QDateTimeEdit" name="bingEndDate">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>12</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: blue;</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+             <property name="displayFormat">
+              <string>dd/MM/yyyy</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="horizontalLayoutWidget_2">
@@ -610,7 +610,7 @@ border-radius: 3px</string>
             <widget class="QLabel" name="tileInfoGoogle">
              <property name="font">
               <font>
-               <pointsize>18</pointsize>
+               <pointsize>16</pointsize>
                <weight>75</weight>
                <italic>false</italic>
                <bold>true</bold>
@@ -953,6 +953,30 @@ border-radius: 3px</string>
          </widget>
         </widget>
        </widget>
+      </item>
+      <item row="0" column="0">
+       <layout class="QGridLayout" name="layoutSearch">
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item row="0" column="1">
+         <widget class="QSpinBox" name="spinSearch"/>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="lblSearch">
+          <property name="text">
+           <string>Search Tile</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="btnSearch">
+          <property name="text">
+           <string>Search</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </item>

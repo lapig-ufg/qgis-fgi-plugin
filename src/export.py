@@ -25,7 +25,7 @@ class Writer:
         try:
             writer = QgsVectorFileWriter
             filename = path.normpath(
-                f'{self.controller.parent.dockwidget.fieldWorkingDirectory.text()}/{self.layer.name()}.gpkg'
+                f'{self.controller.parent.dock_widget.fieldWorkingDirectory.text()}/{self.layer.name()}.gpkg'
             )
             coordinateTransformContext = (
                 QgsProject.instance().transformContext()
@@ -50,7 +50,7 @@ class Writer:
             return True
         except Exception:
             QMessageBox.warning(
-                self.controller.parent.dockwidget,
+                self.controller.parent.dock_widget,
                 'BulkVectorExport',
                 'Failed to export: ' + self.layer.name(),
             )

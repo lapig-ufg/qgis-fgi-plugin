@@ -26,7 +26,7 @@ class ToolPointer(QgsMapTool):
         self.layer.startEditing()
         dataProvider = self.layer.dataProvider()
         imageDate = (
-            self.inspectionController.parent.dockwidget.imageDate.text()
+            self.inspectionController.parent.dock_widget.imageDate.text()
         )
         if not self.inspectionController.date_is_valid(imageDate):
             imageDate = None
@@ -75,5 +75,5 @@ class ClipboardPointer(QgsMapTool):
             level=Qgis.Info,
             duration=5,
         )
-        self.controller.parent.dockwidget.btnLoadClasses.setVisible(True)
+        self.controller.parent.dock_widget.btnLoadClasses.setVisible(True)
         return None
