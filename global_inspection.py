@@ -22,8 +22,12 @@
  ***************************************************************************/
 """
 import os
+import time
+import json
 from datetime import datetime
 from os.path import expanduser, exists
+from functools import partial
+from importlib import reload
 
 import requests as req
 from qgis.core import (
@@ -33,7 +37,7 @@ from qgis.core import (
     QgsRasterLayer,
     QgsVectorLayer,
 )
-from qgis.PyQt.QtCore import QCoreApplication, QSettings, Qt, QTranslator
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, Qt, QTranslator, QEvent, QObject
 from qgis.PyQt.QtGui import QIcon, QPixmap
 from qgis.PyQt.QtWidgets import (
     QAbstractScrollArea,
@@ -43,18 +47,23 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QScrollArea,
     QVBoxLayout,
+    QPlainTextEdit,
+    QProgressBar,
+    QHBoxLayout,
+    QLabel,
+    QWidget
 )
-
+from qgis import utils
 from .global_inspection_dockwidget import GlobalInspectionTilesDockWidget
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 from .sources import connections
 from .src.inspections import InspectionController
-from .src.models.entities import initDb
+from .src.models.entities import init_db, reset_config, db
 
 
-class GlobalInspectionTiles:
+class GlobalInspectionTiles(QObject):
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
@@ -65,54 +74,65 @@ class GlobalInspectionTiles:
             application at run time.
         :type iface: QgsInterface
         """
-        # Save reference to the QGIS interface
-        self.iface = iface
+        try:
+            super(GlobalInspectionTiles, self).__init__()
+            # Save reference to the QGIS interface
+            self.iface = iface
 
-        # initialize plugin directory
-        self.plugin_dir = os.path.dirname(__file__)
+            # initialize plugin directory
+            self.plugin_dir = os.path.dirname(__file__)
 
-        # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'GlobalInspectionTiles_{}.qm'.format(locale),
-        )
+            # initialize locale
+            locale = QSettings().value('locale/userLocale')[0:2]
+            locale_path = os.path.join(
+                self.plugin_dir,
+                'i18n',
+                'GlobalInspectionTiles_{}.qm'.format(locale),
+            )
 
-        if os.path.exists(locale_path):
-            self.translator = QTranslator()
-            self.translator.load(locale_path)
-            QCoreApplication.installTranslator(self.translator)
+            if os.path.exists(locale_path):
+                self.translator = QTranslator()
+                self.translator.load(locale_path)
+                QCoreApplication.installTranslator(self.translator)
 
-        # Declare instance attributes
-        self.actions = []
-        self.menu = self.tr('&Global Inspection Tiles')
-        # TODO: We are going to let the user set this up in a future iteration
-        self.toolbar = self.iface.addToolBar('GlobalInspectionTiles')
-        self.toolbar.setObjectName('GlobalInspectionTiles')
-        self.pluginSend2Google = None
+            # Declare instance attributes
+            self.actions = []
+            self.menu = self.tr('&Global Inspection Tiles')
+            # TODO: We are going to let the user set this up in a future iteration
+            self.toolbar = self.iface.addToolBar('GlobalInspectionTiles')
+            self.toolbar.setObjectName('GlobalInspectionTiles')
 
-        # print "** INITIALIZING GlobalInspectionTiles"
-        self.plugin_is_active = False
-        self.dock_widget = None
-        self.scroll_area = None
-        self.tiles_layer = None
-        self.work_dir = None
-        self.canvas = None
-        self.root = None
-        self.group = None
-        self.tiles = None
-        self.type_inspection = None
-        self.current_tile_index = 0
-        self.selected_class_bing = None
-        self.selected_class_google = None
-        self.current_pixels_layer = None
-        self.inspection_controller = None
-        self.campaigns_config = None
-        self.layer_bing = None
-        self.layer_google = None
-        self.config = initDb()
-        self.scroll = None
+            # print "** INITIALIZING GlobalInspectionTiles"
+            self.plugin_is_active = False
+            self.dock_widget = None
+            self.scroll_area = None
+            self.tiles_layer = None
+            self.work_dir = None
+            self.canvas = None
+            self.root = None
+            self.group = None
+            self.tiles = None
+            self.type_inspection = None
+            self.current_tile_index = 0
+            self.selected_class_bing = None
+            self.selected_class_google = None
+            self.current_pixels_layer = None
+            self.inspection_controller = None
+            self.campaigns_config = None
+            self.layer_bing = None
+            self.layer_google = None
+            self.config = init_db()
+            self.scroll = None
+            self.show_imports_buttons = None
+            self.load_config_from = 'local'
+            self.layers_plugin = []
+            self.reset_button = None
+            self.reload_button = None
+            self.progress_message_bar = None
+            self.progress_bar = None
+
+        except Exception as e:
+            print("Error during initialization:", str(e))
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -130,16 +150,16 @@ class GlobalInspectionTiles:
         return QCoreApplication.translate('GlobalInspectionTiles', message)
 
     def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None,
+            self,
+            icon_path,
+            text,
+            callback,
+            enabled_flag=True,
+            add_to_menu=True,
+            add_to_toolbar=True,
+            status_tip=None,
+            whats_this=None,
+            parent=None,
     ):
         """Add a toolbar icon to the toolbar.
 
@@ -215,34 +235,32 @@ class GlobalInspectionTiles:
     # --------------------------------------------------------------------------
 
     def onClosePlugin(self):
-        """Cleanup necessary items here when plugin dock_widget is closed"""
-
-        # print "** CLOSING GlobalInspectionTiles"
-        QgsProject.instance().clear()
-        self.dock_widget.fieldFileName.setText('')
-        self.dock_widget.interpreterName.setText('')
-        self.dock_widget.fieldWorkingDirectory.setText('')
-        self.dock_widget.imageDate.clear()
-        self.iface.actionPan().trigger()
-
+        if hasattr(self, 'dock_widget'):
+            self.dock_widget.localConfig.removeEventFilter(self)
+        self.reset_plugin_instance(reset=False)
         # disconnects
         self.dock_widget.closingPlugin.disconnect(self.onClosePlugin)
+        self.reset_button.triggered.disconnect(self.reset_configuration)
+        self.reload_button.triggered.disconnect(self.reload_plugin)
+
+        if hasattr(self, 'toolbar') and self.toolbar:
+            # Remove the actions from the toolbar
+            self.toolbar.removeAction(self.reset_button)
+            self.toolbar.removeAction(self.reload_button)
+
         self.remove_files_with_extension('/datasource', '.gpkg')
-
-        # remove this statement if dock_widget is to remain
-        # for reuse if plugin is reopened
-        # Commented next statement since it causes QGIS crashe
-        # when closing the docked window:
+        QgsProject.instance().removeMapLayers(self.list_layers())
         self.dock_widget = None
-
         self.plugin_is_active = False
 
     def remove_files_with_extension(self, directory, extension):
         directory = os.path.dirname(__file__) + directory
         for filename in os.listdir(directory):
-            if filename.endswith(extension):
-                file_path = os.path.join(directory, filename)
-                os.remove(file_path)
+            if 'default_tiles.gpkg' not in filename:
+                if filename.endswith(extension):
+                    file_path = os.path.join(directory, filename)
+                    os.remove(file_path)
+
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
@@ -255,6 +273,34 @@ class GlobalInspectionTiles:
         del self.toolbar
 
     # --------------------------------------------------------------------------
+
+    @staticmethod
+    def is_valid_json(text):
+        try:
+            json.loads(text)
+            return True
+        except json.JSONDecodeError:
+            return False
+
+    def eventFilter(self, obj, event):
+        if hasattr(self, 'dock_widget') and self.dock_widget is not None:
+            if obj == self.dock_widget.localConfig and event.type() == QEvent.FocusOut:
+                content = self.dock_widget.localConfig.toPlainText()
+                color = '#e6fff2'
+                if not self.is_valid_json(content):
+                    color = "#ffcccc"
+                    self.iface.messageBar().pushMessage(
+                        'LOCAL CONFIG',
+                        'The provided configuration has syntax errors for the JSON format, please correct them.',
+                        level=Qgis.Critical,
+                        duration=10,
+                    )
+
+                self.dock_widget.localConfig.setStyleSheet("QPlainTextEdit { background-color:" + color + "; }")
+                return True  # event was handled
+
+        return super(GlobalInspectionTiles, self).eventFilter(obj, event)
+
     def open_google_satellite(self):
 
         url = 'https://mt1.google.com/vt/lyrs=s&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D'
@@ -265,6 +311,7 @@ class GlobalInspectionTiles:
 
         layer = QgsRasterLayer(qgis_tms_uri, 'Google', 'wms')
         self.layer_google = layer
+        self.add_layer(layer.id())
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
             QgsProject.instance().layerTreeRoot().findLayer(
@@ -272,6 +319,20 @@ class GlobalInspectionTiles:
             ).setItemVisibilityChecked(False)
         else:
             print('Layer failed to load!')
+
+    def add_layer(self, layer_id: str):
+        """Add a layer ID to the list if it's not already present."""
+        if layer_id not in self.layers_plugin:
+            self.layers_plugin.append(layer_id)
+
+    def remove_layer(self, layer_id: str):
+        """Remove a layer ID from the list if it exists."""
+        if layer_id in self.layers_plugin:
+            self.layers_plugin.remove(layer_id)
+
+    def list_layers(self):
+        """Return the list of layer IDs."""
+        return self.layers_plugin
 
     def open_bing_satellite(self):
 
@@ -281,30 +342,73 @@ class GlobalInspectionTiles:
 
         layer = QgsRasterLayer(qgis_tms_uri, 'Bing', 'wms')
         self.layer_bing = layer
-
+        self.add_layer(layer.id())
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
             QgsProject.instance().layerTreeRoot().findLayer(
                 layer.id()
-            ).setItemVisibilityChecked(False)
+            ).setItemVisibilityChecked(True)
         else:
             print('Layer failed to load!')
 
     def get_config(self, key):
         """Load config file and get value of key"""
+        if key is 'inspectionConfig':
+            return self.config.get_inspection_config()
+
         return getattr(self.config, key)
 
     def set_config(self, key, value):
         """Write config in config file"""
-        setattr(self.config, key, value)
-        self.config.save()
+        with db.atomic() as transaction:  # Start a new transaction
+            try:
+                setattr(self.config, key, value)
+                self.config.save()
+            except Exception as e:
+                print(f"Error setting config for key: {key}, value: {value}. Error: {e}")
+                transaction.rollback()  # Rollback the transaction if there's an error
+
+    def clear_config(self):
+        self.config = reset_config()
+
+    def handle_remote_url(self, config):
+        if "cell_size" not in config:
+            config['cell_size'] = 10
+
+        for _class in config['classes']:
+            if "rgba" not in _class:
+                _class['rgba'] = _class['rgb']
+        return config
 
     def load_type_inspections(self):
         """Load campaigns from service: https://ows.lapig.iesa.ufg.br/api/global-pasture/campaigns"""
-        resp = req.get(
-            'https://ows.lapig.iesa.ufg.br/api/global-pasture/campaigns'
-        )
-        self.campaigns_config = resp.json()[0]
+        if self.load_config_from == 'url':
+            url = self.dock_widget.configURL.text()
+            if url is not None:
+                resp = req.get(
+                    url
+                )
+
+                # self.campaigns_config = self.handle_remote_url(resp.json()[0])
+                self.campaigns_config = resp.json()[0]
+                self.set_config(key='configURL', value=url)
+                self.update_progress(30)
+            else:
+                self.iface.messageBar().pushMessage(
+                    'ERROR',
+                    'It was not possible to load the settings from the provided URL.',
+                    level=Qgis.Critical,
+                    duration=5,
+                )
+        else:
+            self.update_progress(30)
+            local_config = json.loads(self.dock_widget.localConfig.toPlainText())
+            self.campaigns_config = local_config
+            self.set_config(key='inspectionConfig', value=self.campaigns_config)
+
+        self.show_config_url(False)
+        self.show_local_config(False)
+        self.enable_config_buttons(False)
 
     def config_tiles(self):
         tile = self.tiles[self.current_tile_index]
@@ -314,14 +418,19 @@ class GlobalInspectionTiles:
         self.dock_widget.tileInfoGoogle.setText(
             f'Tile {self.current_tile_index + 1} of {len(self.tiles)}'
         )
-
+        self.update_progress(50)
         self.inspection_controller.create_grid_pixels(tile)
+        self.update_progress(90)
         self.dock_widget.lblSearch.setVisible(True)
         self.dock_widget.spinSearch.setVisible(True)
         self.dock_widget.btnSearch.setVisible(True)
+        self.dock_widget.btnNewInspection.setVisible(True)
         self.dock_widget.spinSearch.setMaximum(999999999)
+        self.update_progress(100)
+        self.finish_progress()
 
     def load_tiles(self):
+        self.update_progress(40)
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         """Load tiles from layer"""
         instance = QgsProject.instance()
@@ -330,11 +439,18 @@ class GlobalInspectionTiles:
             if layer.name() == 'tiles':
                 self.tiles = [f.attributes() for f in layer.getFeatures()]
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+        self.update_progress(45)
 
     def open_tiles_file(self, from_config=False):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
 
         """Open Tiles file Dialog"""
+
+        interpreter_name = self.dock_widget.interpreterName.text()
+        if interpreter_name != '':
+            self.set_config(
+                key='interpreterName', value=interpreter_name.upper()
+            )
 
         if from_config:
             layer_path = self.get_config('filePath')
@@ -353,13 +469,16 @@ class GlobalInspectionTiles:
                 {
                     'color': '0,0,0,0',
                     'color_border': 'red',
-                    'width_border': '0.5',
-                    'style': 'dashed_line',
+                    'width_border': '0.7'
                 }
             )
+            fill_layer = symbol.symbolLayer(0)
+            fill_layer.setStrokeStyle(Qt.DashLine)
+
             self.tiles_layer.renderer().setSymbol(symbol)
             self.dock_widget.fieldFileName.setText(layer_path)
             QgsProject.instance().addMapLayer(self.tiles_layer)
+            self.add_layer(self.tiles_layer.id())
             self.iface.setActiveLayer(self.tiles_layer)
             self.iface.zoomToActiveLayer()
             self.load_tiles()
@@ -368,8 +487,8 @@ class GlobalInspectionTiles:
             if from_config:
                 self.config_tiles()
 
+            QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
             return True
-
         else:
             self.iface.messageBar().pushMessage(
                 'ERROR READ FILE',
@@ -379,7 +498,6 @@ class GlobalInspectionTiles:
             )
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
             return False
-        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
     def get_dir_path(self, from_config=False):
         if from_config:
@@ -392,6 +510,7 @@ class GlobalInspectionTiles:
                 QFileDialog.ShowDirsOnly,
             )
             self.dock_widget.btnInitInspections.setVisible(True)
+
         self.dock_widget.fieldWorkingDirectory.setText(directory)
         self.set_config(key='workingDirectory', value=directory)
 
@@ -399,7 +518,7 @@ class GlobalInspectionTiles:
         image_date = self.dock_widget.imageDate.date()
 
         if not self.inspection_controller.date_is_valid(
-            image_date.toString('yyyy-MM-dd')
+                image_date.toString('yyyy-MM-dd')
         ):
             image_date = None
 
@@ -423,7 +542,8 @@ class GlobalInspectionTiles:
                 self.dock_widget.selectedClassBing.setVisible(True)
             else:
                 self.dock_widget.btnNext.setVisible(True)
-                self.dock_widget.importBingClassification.setVisible(True)
+                if self.dock_widget.btnShowYes.isChecked():
+                    self.dock_widget.importBingClassification.setVisible(True)
                 self.dock_widget.labelClassGoogle.setVisible(True)
                 self.dock_widget.selectedClassGoogle.setVisible(True)
 
@@ -431,10 +551,10 @@ class GlobalInspectionTiles:
 
     def init_inspections(self):
         interpreter_name = self.dock_widget.interpreterName.text()
-
         if interpreter_name != '':
             QApplication.instance().setOverrideCursor(Qt.BusyCursor)
-
+            self.update_progress(20)
+            self.load_type_inspections()
             self.config_tiles()
             self.set_config(
                 key='interpreterName', value=interpreter_name.upper()
@@ -457,6 +577,271 @@ class GlobalInspectionTiles:
                 duration=5,
             )
 
+    def show_local_config(self, show=False):
+        # self.dock_widget.localConfigLabel.setVisible(show)
+        sh = not show
+        self.dock_widget.localConfig.setReadOnly(sh)
+        color = "#e6e6e6"
+        if not sh:
+            color = '#fafafa'
+        self.dock_widget.localConfig.setStyleSheet("QPlainTextEdit { background-color:" + color + "; }")
+
+    def show_config_url(self, show=False):
+        self.dock_widget.configURL.setEnabled(show)
+
+    def enable_config_buttons(self, enable=False):
+        self.dock_widget.btnConfigLocal.setEnabled(enable)
+        self.dock_widget.btnConfigURL.setEnabled(enable)
+        self.dock_widget.btnShowYes.setEnabled(enable)
+        self.dock_widget.btnShowNo.setEnabled(enable)
+
+    def on_config_buttons_toggled(self, button):
+        actions = {
+            'Yes': lambda: setattr(self, 'show_imports_buttons', True),
+            'No': lambda: setattr(self, 'show_imports_buttons', False),
+            'Local': lambda: setattr(self, 'load_config_from', 'local'),
+            'URL': lambda: setattr(self, 'load_config_from', 'url')
+        }
+
+        action = actions.get(button)
+
+        if action:
+            action()
+
+        if self.show_imports_buttons:
+            self.set_config(key='showImportsButtons', value=self.show_imports_buttons)
+
+        if self.load_config_from:
+            self.set_config(key='loadConfigFrom', value=self.load_config_from)
+
+        if self.load_config_from == 'local':
+            self.show_local_config(True)
+        else:
+            self.show_local_config(False)
+
+        if self.load_config_from == 'url':
+            self.show_config_url(True)
+        else:
+            self.show_config_url(False)
+
+    def reset_content(self):
+        self.update_progress(10)
+        self.plugin_actions(connect=False)
+        self.dock_widget.btnFile.setEnabled(True)
+        self.dock_widget.btnWorkingDirectory.setEnabled(True)
+        self.dock_widget.interpreterName.setEnabled(True)
+        self.dock_widget.tabWidget.setCurrentIndex(0)
+        self.clear_config()
+        self.plugin_actions(connect=True)
+        self.dock_widget.spinSearch.setMaximum(999999999)
+
+    def continue_inspecting(self):
+        self.get_dir_path(from_config=True)
+
+        if not self.open_tiles_file(from_config=True):
+            return
+        self.dock_widget.interpreterName.setText(
+            self.get_config('interpreterName').upper()
+        )
+
+        self.update_progress(10)
+
+        self.load_config_from = self.get_config('loadConfigFrom')
+        self.load_campaign_conf()
+
+        self.show_imports_buttons = self.get_config('showImportsButtons')
+
+        if self.show_imports_buttons:
+            self.dock_widget.btnShowNo.setChecked(False)
+            self.dock_widget.btnShowYes.setChecked(True)
+        else:
+            self.dock_widget.btnShowNo.setChecked(True)
+            self.dock_widget.btnShowYes.setChecked(False)
+
+        self.load_type_inspections()
+
+        self.dock_widget.tabWidget.setTabEnabled(1, True)
+        self.dock_widget.tabWidget.setTabEnabled(2, True)
+
+        self.set_config(key='imageSource', value='BING')
+        self.inspection_controller.on_change_tab(1)
+        self.show_config_url(False)
+        self.show_local_config(False)
+        self.enable_config_buttons(False)
+        self.dock_widget.interpreterName.setEnabled(False)
+        self.dock_widget.btnFile.setEnabled(False)
+        self.dock_widget.btnWorkingDirectory.setEnabled(False)
+        self.dock_widget.btnInitInspections.setVisible(False)
+        self.plugin_actions()
+
+    def plugin_actions(self, connect=True):
+        # Define all connections in a list of tuples
+        connections = [
+            (self.dock_widget.btnFile.clicked, self.open_tiles_file),
+            (self.dock_widget.btnWorkingDirectory.clicked, self.get_dir_path),
+            (self.dock_widget.btnClearSelectionBing.clicked, self.inspection_controller.remove_selection),
+            (self.dock_widget.btnClearSelectionGoogle.clicked, self.inspection_controller.remove_selection),
+            (self.dock_widget.btnInitInspections.clicked, self.init_inspections),
+            (self.dock_widget.btnLoadClasses.clicked, self.load_classes),
+            (self.dock_widget.btnFinishBing.clicked, self.inspection_controller.start_inspection_google),
+            (self.dock_widget.tabWidget.currentChanged, self.inspection_controller.on_change_tab),
+            (self.dock_widget.sameImage.clicked, self.inspection_controller.set_same_image),
+            (self.dock_widget.importBingClassification.clicked, self.inspection_controller.import_classes_bing),
+            (self.dock_widget.btnConfigLocal.clicked, partial(self.on_config_buttons_toggled, 'Local')),
+            (self.dock_widget.btnConfigURL.clicked, partial(self.on_config_buttons_toggled, 'URL')),
+            (self.dock_widget.btnShowYes.clicked, partial(self.on_config_buttons_toggled, 'Yes')),
+            (self.dock_widget.btnShowNo.clicked, partial(self.on_config_buttons_toggled, 'No')),
+            (self.dock_widget.btnNewInspection.clicked, self.new_inspection),
+        ]
+
+        # If connecting
+        if connect:
+            for signal, slot in connections:
+                signal.connect(slot)
+        # If disconnecting
+        else:
+            for signal, slot in connections:
+                try:
+                    signal.disconnect(slot)
+                except TypeError as e:
+
+                    pass
+
+    def reset_screen(self):
+        self.dock_widget.btnInitInspections.setVisible(False)
+        self.dock_widget.btnClearSelectionBing.setVisible(False)
+        self.dock_widget.btnClearSelectionGoogle.setVisible(False)
+        self.dock_widget.btnLoadClasses.setVisible(False)
+        self.dock_widget.tabWidget.setTabEnabled(1, False)
+        self.dock_widget.tabWidget.setTabEnabled(2, False)
+        self.dock_widget.tabWidget.setTabEnabled(3, False)
+        self.dock_widget.labelClassBing.setVisible(False)
+        self.dock_widget.labelClassGoogle.setVisible(False)
+        self.dock_widget.selectedClassBing.setVisible(False)
+        self.dock_widget.selectedClassGoogle.setVisible(False)
+        self.dock_widget.classesBing.setVisible(False)
+        self.dock_widget.classesGoogle.setVisible(False)
+        self.dock_widget.importBingClassification.setVisible(False)
+        self.dock_widget.btnFinishBing.setVisible(False)
+        self.dock_widget.bingStartDate.setEnabled(False)
+        self.dock_widget.btnNext.setVisible(False)
+        self.dock_widget.btnNext.setEnabled(False)
+        self.dock_widget.bingEndDate.setEnabled(False)
+        self.dock_widget.imageDate.setMaximumDateTime(datetime.now())
+        self.dock_widget.lblSearch.setVisible(False)
+        self.dock_widget.spinSearch.setVisible(False)
+        self.dock_widget.btnSearch.setVisible(False)
+        self.dock_widget.btnNewInspection.setVisible(False)
+        self.show_config_url(False)
+        self.dock_widget.btnConfigLocal.setChecked(True)
+        self.dock_widget.btnShowNo.setChecked(True)
+
+    def reset_plugin_instance(self, reset=True):
+        if reset:
+            QgsProject.instance().clear()
+            self.iface.mainWindow().statusBar().hide()
+
+        self.dock_widget.fieldFileName.setText('')
+        self.dock_widget.interpreterName.setText('')
+        self.dock_widget.fieldWorkingDirectory.setText('')
+        self.dock_widget.imageDate.clear()
+        self.iface.actionPan().trigger()
+        self.remove_files_with_extension('/datasource', '.gpkg')
+
+    def new_inspection(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Question)
+        msg.setText('Do you want to start a new inspection?')
+        msg.setWindowTitle('INSPECTION TILES')
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+        retval = msg.exec_()
+        # 65536 -> No | 16384 -> Yes
+        if retval == 16384:
+            self.reset_content()
+            self.reset_screen()
+            self.reset_plugin_instance()
+            self.open_google_satellite()
+            self.open_bing_satellite()
+            self.enable_config_buttons(enable=True)
+            self.show_local_config(show=True)
+            self.iface.zoomToActiveLayer()
+
+    def load_campaign_conf(self):
+        if self.load_config_from == 'local':
+            self.dock_widget.btnConfigLocal.setChecked(True)
+            self.dock_widget.btnConfigURL.setChecked(False)
+
+            inspection_config = self.get_config('inspectionConfig')
+            self.campaigns_config = inspection_config
+
+            self.dock_widget.localConfig.setPlainText(
+                json.dumps(inspection_config, indent=4)
+            )
+        else:
+            self.dock_widget.btnConfigLocal.setChecked(False)
+            self.dock_widget.btnConfigURL.setChecked(True)
+            self.dock_widget.configURL.setText(
+                self.get_config('configURL')
+            )
+
+    def start_processing(self):
+        # Remove existing progress bar if any
+        if self.progress_message_bar:
+            self.finish_progress()
+
+        self.progress_message_bar = self.iface.messageBar().createMessage("")
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximum(100)
+
+        # Create a QWidget to hold the progress bar
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(QLabel("Processing..."))
+        layout.addWidget(self.progress_bar)
+        container.setLayout(layout)
+
+        self.progress_message_bar.layout().addWidget(container)
+
+        self.iface.messageBar().pushWidget(self.progress_message_bar, Qgis.Info)
+
+    def update_progress(self, value):
+        if self.progress_bar:
+            self.progress_bar.setValue(value)
+
+    def finish_progress(self):
+        if self.progress_message_bar:
+            # Hide and remove the progress bar
+            self.iface.messageBar().clearWidgets()
+            self.progress_bar = None
+            self.progress_message_bar = None
+
+    def reload_plugin(self):
+        # Assuming the name of your plugin is 'my_plugin_name'
+        name = 'inspection-tiles'
+
+        # Find the plugin
+        plugin = utils.plugins.get(name)
+        if plugin is None:
+            raise ValueError(f"Plugin {name} not found.")
+
+        # Unload the plugin
+        utils.unloadPlugin(name)
+
+        # Load the plugin again
+        utils.loadPlugin(name)
+        self.onClosePlugin()
+    def reset_configuration(self):
+        self.reset_content()
+        self.reset_screen()
+        self.reset_plugin_instance()
+        self.open_google_satellite()
+        self.open_bing_satellite()
+        self.enable_config_buttons(enable=True)
+        self.show_local_config(show=True)
+
     def run(self):
         """Run method that loads and starts the plugin"""
         if not self.plugin_is_active:
@@ -468,6 +853,25 @@ class GlobalInspectionTiles:
             if self.dock_widget is None:
                 # Create the dock_widget (after translation) and keep reference
                 self.dock_widget = GlobalInspectionTilesDockWidget()
+
+            self.iface.mainWindow().statusBar().showMessage('Testing...')
+            self.start_processing()
+
+            # Create a reset button with an icon and label
+            reset_icon_path = os.path.join(os.path.dirname(__file__), 'img', 'delete.png')
+            reset_icon = QIcon(reset_icon_path)
+            self.reset_button = QAction(reset_icon, "Clear Configuration", self.iface.mainWindow())
+            self.reset_button.triggered.connect(self.reset_configuration)
+
+
+            # Create a reload button with an icon and label
+            reload_icon_path = os.path.join(os.path.dirname(__file__), 'img', 'reload.png')
+            reload_icon = QIcon(reload_icon_path)
+            self.reload_button = QAction(reload_icon, "Reload Plugin", self.iface.mainWindow())
+            self.reload_button.triggered.connect(self.reload_plugin)
+
+            self.toolbar.addAction(self.reset_button)
+            self.toolbar.addAction(self.reload_button)
 
             self.dock_widget.btnPointDate.setIcon(
                 QIcon(os.path.dirname(__file__) + '/img/copy-point.png')
@@ -486,116 +890,43 @@ class GlobalInspectionTiles:
             )
             self.iface.actionPan().trigger()
 
+            # Feed QGIS with default TMSs.
             connections.xyz(self)
             self.inspection_controller = InspectionController(self)
 
             self.work_dir = (
-                str.split(__file__, 'global_inspection.py')[0] + 'datasource'
+                    str.split(__file__, 'global_inspection.py')[0] + 'datasource'
             )
             self.plugin_is_active = True
             self.canvas = self.iface.mapCanvas()
 
-            QgsProject.instance().clear()
-
-            self.dock_widget.btnInitInspections.setVisible(False)
-            self.dock_widget.btnClearSelectionBing.setVisible(False)
-            self.dock_widget.btnClearSelectionGoogle.setVisible(False)
-            self.dock_widget.btnLoadClasses.setVisible(False)
-            self.dock_widget.tabWidget.setTabEnabled(1, False)
-            self.dock_widget.tabWidget.setTabEnabled(2, False)
-            self.dock_widget.tabWidget.setTabEnabled(3, False)
-            self.dock_widget.labelClassBing.setVisible(False)
-            self.dock_widget.labelClassGoogle.setVisible(False)
-            self.dock_widget.selectedClassBing.setVisible(False)
-            self.dock_widget.selectedClassGoogle.setVisible(False)
-            self.dock_widget.classesBing.setVisible(False)
-            self.dock_widget.classesGoogle.setVisible(False)
-            self.dock_widget.importBingClassification.setVisible(False)
-            self.dock_widget.btnFinishBing.setVisible(False)
-            self.dock_widget.bingStartDate.setEnabled(False)
-            self.dock_widget.btnNext.setVisible(False)
-            self.dock_widget.btnNext.setEnabled(False)
-            self.dock_widget.bingEndDate.setEnabled(False)
-            self.dock_widget.imageDate.setMaximumDateTime(datetime.now())
-            self.dock_widget.lblSearch.setVisible(False)
-            self.dock_widget.spinSearch.setVisible(False)
-            self.dock_widget.btnSearch.setVisible(False)
-
-            self.load_type_inspections()
             self.open_google_satellite()
             self.open_bing_satellite()
 
+            self.reset_screen()
+
+            self.dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+            self.show_config_url(False)
+            self.dock_widget.btnConfigLocal.setChecked(True)
+            self.dock_widget.btnShowNo.setChecked(True)
+            self.dock_widget.localConfig.installEventFilter(self)
+
             file = self.get_config('filePath')
 
+            self.campaigns_config = self.get_config('inspectionConfig')
+
+            self.dock_widget.localConfig.setPlainText(
+                json.dumps(self.campaigns_config, indent=4)
+            )
+
             if file != '':
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Question)
-                msg.setText('Do you want to start a new inspection?')
-                msg.setWindowTitle('INSPECTION TILES')
-                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-                retval = msg.exec_()
-                # 65536 -> No | 16384 -> Yes
-                if retval == 16384:
-                    self.dock_widget.btnFile.setEnabled(True)
-                    self.dock_widget.btnWorkingDirectory.setEnabled(True)
-                    self.dock_widget.interpreterName.setEnabled(True)
-                    self.dock_widget.tabWidget.setCurrentIndex(0)
-                    self.set_config(key='currentTileIndex', value=0)
-                    self.set_config(key='filePath', value='')
-                    self.set_config(key='workingDirectory', value='')
-                    self.set_config(key='interpreterName', value='')
-                    self.set_config(key='imageSource', value='BING')
-                else:
-                    self.get_dir_path(from_config=True)
-                    if not self.open_tiles_file(from_config=True):
-                        return
-                    self.dock_widget.interpreterName.setText(
-                        self.get_config('interpreterName').upper()
-                    )
-                    self.dock_widget.tabWidget.setTabEnabled(1, True)
-                    self.dock_widget.tabWidget.setTabEnabled(2, True)
+                self.continue_inspecting()
+            else:
+                self.reset_content()
 
-                    self.set_config(key='imageSource', value='BING')
-                    self.inspection_controller.on_change_tab(1)
-
-                    self.dock_widget.interpreterName.setEnabled(False)
-                    self.dock_widget.btnFile.setEnabled(False)
-                    self.dock_widget.btnWorkingDirectory.setEnabled(False)
-                    self.dock_widget.btnInitInspections.setVisible(False)
-
-            self.dock_widget.btnFile.clicked.connect(self.open_tiles_file)
-            self.dock_widget.btnWorkingDirectory.clicked.connect(
-                self.get_dir_path
-            )
-            self.dock_widget.btnClearSelectionBing.clicked.connect(
-                self.inspection_controller.remove_selection
-            )
-            self.dock_widget.btnClearSelectionGoogle.clicked.connect(
-                self.inspection_controller.remove_selection
-            )
-            self.dock_widget.btnInitInspections.clicked.connect(
-                self.init_inspections
-            )
-            self.dock_widget.btnLoadClasses.clicked.connect(self.load_classes)
-            self.dock_widget.btnFinishBing.clicked.connect(
-                self.inspection_controller.start_inspection_google
-            )
-            self.dock_widget.tabWidget.currentChanged.connect(
-                self.inspection_controller.on_change_tab
-            )
-            self.dock_widget.sameImage.toggled.connect(
-                self.inspection_controller.set_same_image
-            )
-            self.dock_widget.importBingClassification.clicked.connect(
-                self.inspection_controller.import_classes_bing
-            )
-
-            # connect to provide cleanup on closing of dock_widget
             self.dock_widget.closingPlugin.connect(self.onClosePlugin)
 
             # add scroll
-
             scroll_tab = QScrollArea()
             scroll_tab.setSizeAdjustPolicy(
                 QAbstractScrollArea.AdjustToContents

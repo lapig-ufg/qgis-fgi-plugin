@@ -11,8 +11,6 @@ from qgis.core import (
     QgsProject,
     QgsVectorFileWriter,
 )
-
-
 class Writer:
     def __init__(self, controller, layer, metadata):
         self.layer = layer
