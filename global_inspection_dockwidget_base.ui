@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>445</width>
-    <height>778</height>
+    <height>750</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -28,7 +28,7 @@
   <property name="maximumSize">
    <size>
     <width>445</width>
-    <height>778</height>
+    <height>750</height>
    </size>
   </property>
   <property name="styleSheet">
@@ -89,8 +89,54 @@
         <property name="bottomMargin">
          <number>0</number>
         </property>
+        <item row="0" column="3">
+         <widget class="QPushButton" name="btnNewInspection">
+          <property name="toolTip">
+           <string>Create new Inspection</string>
+          </property>
+          <property name="toolTipDuration">
+           <number>-1</number>
+          </property>
+          <property name="text">
+           <string>New</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="5">
+         <widget class="QPushButton" name="btnSkip">
+          <property name="text">
+           <string>Skip</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="1">
-         <widget class="QSpinBox" name="spinSearch"/>
+         <widget class="QSpinBox" name="spinSearch">
+          <property name="minimumSize">
+           <size>
+            <width>66</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Search tile by FID</string>
+          </property>
+          <property name="toolTipDuration">
+           <number>-1</number>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QPushButton" name="zoom">
+          <property name="toolTip">
+           <string>Zoom to tile layer</string>
+          </property>
+          <property name="toolTipDuration">
+           <number>-1</number>
+          </property>
+          <property name="text">
+           <string>Zoom</string>
+          </property>
+         </widget>
         </item>
         <item row="0" column="2">
          <widget class="QPushButton" name="btnSearch">
@@ -101,15 +147,14 @@
         </item>
         <item row="0" column="0">
          <widget class="QLabel" name="lblSearch">
-          <property name="text">
+          <property name="toolTip">
            <string>Search tile by FID</string>
           </property>
-         </widget>
-        </item>
-        <item row="0" column="3">
-         <widget class="QPushButton" name="btnNewInspection">
+          <property name="toolTipDuration">
+           <number>-1</number>
+          </property>
           <property name="text">
-           <string>New Inspection</string>
+           <string>Tile FID</string>
           </property>
          </widget>
         </item>
@@ -126,7 +171,7 @@
         <property name="maximumSize">
          <size>
           <width>450</width>
-          <height>900</height>
+          <height>650</height>
          </size>
         </property>
         <property name="cursor">
@@ -304,17 +349,18 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="1">
-            <widget class="QRadioButton" name="btnShowYes">
-             <property name="layoutDirection">
-              <enum>Qt::LeftToRight</enum>
-             </property>
+           <item row="2" column="0" colspan="3">
+            <widget class="QLabel" name="configURLLabel">
              <property name="text">
-              <string>Yes</string>
+              <string>Config URL: </string>
              </property>
-             <attribute name="buttonGroup">
-              <string notr="true">showImportsGroup</string>
-             </attribute>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="3">
+            <widget class="QLabel" name="localConfigLabel">
+             <property name="text">
+              <string>Local Config: </string>
+             </property>
             </widget>
            </item>
            <item row="0" column="1">
@@ -340,18 +386,17 @@
            <item row="3" column="0" colspan="3">
             <widget class="QLineEdit" name="configURL"/>
            </item>
-           <item row="2" column="0" colspan="3">
-            <widget class="QLabel" name="configURLLabel">
-             <property name="text">
-              <string>Config URL: </string>
+           <item row="1" column="1">
+            <widget class="QRadioButton" name="btnShowYes">
+             <property name="layoutDirection">
+              <enum>Qt::LeftToRight</enum>
              </property>
-            </widget>
-           </item>
-           <item row="4" column="0" colspan="3">
-            <widget class="QLabel" name="localConfigLabel">
              <property name="text">
-              <string>Local Config: </string>
+              <string>Yes</string>
              </property>
+             <attribute name="buttonGroup">
+              <string notr="true">showImportsGroup</string>
+             </attribute>
             </widget>
            </item>
            <item row="0" column="2">
@@ -425,9 +470,9 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>480</y>
+            <y>240</y>
             <width>391</width>
-            <height>77</height>
+            <height>131</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="layoutClassesBing">
@@ -453,7 +498,7 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>440</y>
+            <y>190</y>
             <width>391</width>
             <height>31</height>
            </rect>
@@ -503,45 +548,11 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="verticalLayoutWidget_3">
-          <property name="geometry">
-           <rect>
-            <x>10</x>
-            <y>137</y>
-            <width>391</width>
-            <height>258</height>
-           </rect>
-          </property>
-          <layout class="QVBoxLayout" name="boxThumb">
-           <item>
-            <widget class="QLabel" name="thumBing">
-             <property name="minimumSize">
-              <size>
-               <width>256</width>
-               <height>256</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>16777210</height>
-              </size>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
          <widget class="QPushButton" name="btnFinishBing">
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>580</y>
+            <y>410</y>
             <width>391</width>
             <height>28</height>
            </rect>
@@ -702,7 +713,7 @@ border-radius: 3px</string>
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>410</y>
+            <y>140</y>
             <width>391</width>
             <height>21</height>
            </rect>
@@ -800,9 +811,9 @@ border-radius: 3px</string>
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>520</y>
+            <y>250</y>
             <width>391</width>
-            <height>77</height>
+            <height>121</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="layoutClassesGoogle">
@@ -822,7 +833,7 @@ border-radius: 3px</string>
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>480</y>
+            <y>210</y>
             <width>391</width>
             <height>31</height>
            </rect>
@@ -1011,7 +1022,7 @@ border-radius: 3px</string>
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>460</y>
+            <y>170</y>
             <width>391</width>
             <height>21</height>
            </rect>
@@ -1034,57 +1045,6 @@ border-radius: 3px</string>
              </property>
              <property name="text">
               <string>CLASSES        </string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="verticalLayoutWidget_4">
-          <property name="geometry">
-           <rect>
-            <x>80</x>
-            <y>170</y>
-            <width>258</width>
-            <height>281</height>
-           </rect>
-          </property>
-          <layout class="QVBoxLayout" name="boxBingImage">
-           <item>
-            <widget class="QLabel" name="label">
-             <property name="font">
-              <font>
-               <pointsize>11</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>Bing Image</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="thumGoogle">
-             <property name="minimumSize">
-              <size>
-               <width>256</width>
-               <height>256</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>16777210</height>
-              </size>
-             </property>
-             <property name="text">
-              <string/>
              </property>
              <property name="alignment">
               <set>Qt::AlignCenter</set>

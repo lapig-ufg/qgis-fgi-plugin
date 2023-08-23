@@ -24,7 +24,7 @@ def get_config(default_tiles_path=None, results_path=None, empty=False):
                 default_tiles_path = os.path.join(base_path, "datasource", "default_tiles.gpkg")
             if results_path is None:
                 results_path = os.path.join(base_path, "results")
-        interpreter_name = 'user_test'
+        interpreter_name = 'test_user'
         file_path = default_tiles_path
         working_directory = results_path
 
