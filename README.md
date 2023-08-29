@@ -1,10 +1,10 @@
-# Global Inspection Tiles Plugin
+# QGIS Fast Grid Inspection (FGI)
 
 ## Introduction
 
 ## Overview
 
-The "Global Inspection Tiles" plugin is a versatile tool designed for use in QGIS, aimed at innovating the way users generate and classify samples. Originally developed to assist in creating a comprehensive global map of pastures, its functionality extends far beyond just that application. Whether you're mapping pastures or undertaking any other geospatial analysis, this plugin offers a range of features to enhance your workflow in QGIS.
+The "QGIS Fast Grid Inspection" plugin is a versatile tool designed for use in QGIS, aimed at innovating the way users generate and classify samples. Originally developed to assist in creating a comprehensive global map of pastures, its functionality extends far beyond just that application. Whether you're mapping pastures or undertaking any other geospatial analysis, this plugin offers a range of features to enhance your workflow in QGIS.
 
 ### Primary Features:
 
