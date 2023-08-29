@@ -1,15 +1,15 @@
-## Feedback & Contribution
+## Contribution
 
-We're thrilled that you're interested in contributing to the "Global Inspection Tiles" plugin! Whether you're a developer, a GIS expert, or someone who just wants to make things better, your contribution is welcome. Below you'll find ways to provide feedback or contribute to the development.
+We're thrilled that you're interested in contributing to the "QGIS Fast Grid Inspection" plugin! Whether you're a developer, a GIS expert, or someone who just wants to make things better, your contribution is welcome. Below you'll find ways to provide feedback or contribute to the development.
 
 ### Contributions via Pull Requests
 
-1. **Fork the Repository**: Start by forking the [Global Inspection Tiles repository](https://github.com/lapig-ufg/inspection-tiles).
+1. **Fork the Repository**: Start by forking the [QGIS Fast Grid Inspection repository](https://github.com/lapig-ufg/qgis-fgi-plugin).
 
 2. **Clone Your Fork**: Clone your fork locally to make changes.
 
     ```bash
-    git clone https://github.com/yourusername/inspection-tiles.git
+    git clone https://github.com/yourusername/qgis-fgi-plugin.git
     ```
 
 3. **Create a New Branch**: Always create a new branch for your changes.
