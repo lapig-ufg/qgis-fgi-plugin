@@ -1,10 +1,10 @@
 Plugin Builder Results
 
 Your plugin GlobalInspectionTiles was created in:
-    /home/tharles/projects_global_pasture/global_inspection
+   ~/projects_global_pasture/global_inspection
 
 Your QGIS plugin directory is located at:
-    /home/tharles/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins
+    ~/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins
 
 What's Next:
 

@@ -61,7 +61,7 @@ from .global_inspection_dockwidget import GlobalInspectionTilesDockWidget
 from .resources import *
 from .sources import connections
 from .src.inspections import InspectionController
-from .src.models.entities import init_db, reset_config, db
+from .src.models.config_db import init_db, reset_config, set_config, get_config
 
 
 class GlobalInspectionTiles(QObject):
@@ -266,7 +266,7 @@ class GlobalInspectionTiles(QObject):
         gc.collect()
 
     def remove_path(self, path):
-        def safe_remove(_path, retries=5, delay=2):
+        def safe_remove(_path, retries=8, delay=1):
             for _ in range(retries):
                 try:
                     os.remove(_path)
@@ -278,13 +278,21 @@ class GlobalInspectionTiles(QObject):
             safe_remove(path)
 
     def remove_files_with_extension(self, directory, extension):
+        self.start_processing()
         directory = os.path.dirname(__file__) + directory
+        total_files = len([name for name in os.listdir(directory)])
+        processed_files = 0
         for filename in os.listdir(directory):
+            self.update_progress(10)
             if 'default_tiles.gpkg' not in filename:
                 if filename.endswith(extension):
                     file_path = os.path.join(directory, filename)
                     self.remove_path(file_path)
 
+            processed_files += 1
+            progress = (processed_files / total_files) * 100
+            self.update_progress(progress)
+        self.finish_progress()
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
@@ -372,25 +380,32 @@ class GlobalInspectionTiles(QObject):
         else:
             print('Layer failed to load!')
 
+    # def get_config(self, key):
+    #     """Load config file and get value of key"""
+    #     if key is 'inspectionConfig':
+    #         return self.config.get_inspection_config()
+    #
+    #     return getattr(self.config, key)
+    #
     def get_config(self, key):
         """Load config file and get value of key"""
-        if key is 'inspectionConfig':
-            return self.config.get_inspection_config()
-
-        return getattr(self.config, key)
+        return get_config(key)
 
     def set_config(self, key, value):
         """Write config in config file"""
-        with db.atomic() as transaction:  # Start a new transaction
-            try:
-                setattr(self.config, key, value)
-                # if key is 'inspectionConfig':
-                # print('inspectionConfig', value)
-                self.config.save()
-            except Exception as e:
-                print(f"Error setting config for key: {key}, value: {value}. Error: {e}")
-                transaction.rollback()  # Rollback the transaction if there's an error
-
+        set_config(key, value)
+    # def set_config(self, key, value):
+    #     """Write config in config file"""
+    #     with db.atomic() as transaction:  # Start a new transaction
+    #         try:
+    #             setattr(self.config, key, value)
+    #             # if key is 'inspectionConfig':
+    #             # print('inspectionConfig', value)
+    #             self.config.save()
+    #         except Exception as e:
+    #             logger.exception(e)
+    #             print(f"Error setting config for key: {key}, value: {value}. Error: {e}")
+    #             transaction.rollback()  # Rollback the transaction if there's an error
     def clear_config(self):
         self.config = reset_config()
 
@@ -425,7 +440,6 @@ class GlobalInspectionTiles(QObject):
                 )
         else:
             self.update_progress(30)
-            print('local_config', self.dock_widget.localConfig.toPlainText())
             local_config = json.loads(self.dock_widget.localConfig.toPlainText())
             self.campaigns_config = local_config
             self.set_config(key='inspectionConfig', value=self.campaigns_config)
@@ -435,6 +449,7 @@ class GlobalInspectionTiles(QObject):
         self.enable_config_buttons(False)
 
     def config_tiles(self):
+        self.current_pixels_layer = None
         self.update_progress(30)
         try:
             tile = self.tiles[self.current_tile_index]
@@ -467,7 +482,6 @@ class GlobalInspectionTiles(QObject):
             print(e)
 
     def load_tiles(self):
-        self.update_progress(40)
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         """Load tiles from layer"""
         instance = QgsProject.instance()
@@ -476,7 +490,6 @@ class GlobalInspectionTiles(QObject):
             if layer.name() == 'tiles':
                 self.tiles = [f.attributes() for f in layer.getFeatures()]
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-        self.update_progress(45)
 
     def open_tiles_file(self, from_config=False):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
@@ -511,7 +524,6 @@ class GlobalInspectionTiles(QObject):
             )
             fill_layer = symbol.symbolLayer(0)
             fill_layer.setStrokeStyle(Qt.DashLine)
-
             self.tiles_layer.renderer().setSymbol(symbol)
             self.dock_widget.fieldFileName.setText(layer_path)
             QgsProject.instance().addMapLayer(self.tiles_layer)
@@ -679,7 +691,6 @@ class GlobalInspectionTiles(QObject):
 
         if not self.open_tiles_file(from_config=True):
             return
-
 
         self.load_config_from = self.get_config('loadConfigFrom')
         self.load_campaign_conf()
@@ -877,6 +888,9 @@ class GlobalInspectionTiles(QObject):
 
     def update_progress(self, value):
         if self.progress_bar:
+            self.progress_bar.setValue(value)
+        else:
+            self.start_processing()
             self.progress_bar.setValue(value)
 
     def finish_progress(self):

@@ -1,4 +1,3 @@
-import gc
 from os import path
 
 from PyQt5.QtWidgets import QMessageBox
@@ -16,8 +15,16 @@ class Writer:
         self.layer = layer
         self.controller = controller
         self.metadata = metadata
+    def __enter__(self):
+        return self
 
-    def gpkg_v2(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Cleanup code here
+        self.layer = None
+        self.controller = None
+        self.metadata = None
+
+    def gpkg_by_native_processing(self):
         work_dir = self.controller.parent.dock_widget.fieldWorkingDirectory.text()
         layer_name = self.layer.name()
         filename = path.normpath(f'{work_dir}/{layer_name}.gpkg')
@@ -75,8 +82,6 @@ class Writer:
             # Notify success
             message = f'The gpkg file of tile {layer_name} was generated successfully and can be found on path {filename}'
             self.controller.parent.iface.messageBar().pushMessage('EXPORT GPKG', message, level=Qgis.Info, duration=30)
-            del self.layer
-            gc.collect()
             return True
         except Exception:
             QMessageBox.warning(
@@ -85,68 +90,3 @@ class Writer:
                 'Failed to export: ' + layer_name,
             )
             return False
-
-    def gpkg_v1(self):
-        writer = None
-        try:
-            writer = QgsVectorFileWriter
-            filename = path.normpath(
-                f'{self.controller.parent.dock_widget.fieldWorkingDirectory.text()}/{self.layer.name()}.gpkg'
-            )
-            coordinateTransformContext = (
-                QgsProject.instance().transformContext()
-            )
-            options = QgsVectorFileWriter.SaveVectorOptions()
-            options.actionOnExistingFile = (
-                QgsVectorFileWriter.CreateOrOverwriteFile
-            )
-            options.fileEncoding = 'UTF-8'
-            options.driverName = 'GPKG'
-            options.layerName = self.layer.name()
-            options.layerOptions = self.metadata
-
-            writer.writeAsVectorFormatV3(
-                self.layer, filename, coordinateTransformContext, options
-            )
-            massage = f'The gpkg file of tile {self.layer.name()} was generated successfully and can be found on path {filename}'
-            self.controller.parent.iface.messageBar().pushMessage(
-                'EXPORT GPKG', massage, level=Qgis.Info, duration=30
-            )
-            writer = None
-            return True
-        except Exception:
-            QMessageBox.warning(
-                self.controller.parent.dock_widget,
-                'BulkVectorExport',
-                'Failed to export: ' + self.layer.name(),
-            )
-            writer = None
-            return False
-
-    def createGpkgLayer(
-        gpkg_path: str,
-        layerNname: str,
-        geometry: int,
-        crs: str,
-        schema: QgsFields,
-        append: bool = False,
-    ):
-        options = QgsVectorFileWriter.SaveVectorOptions()
-        options.driverName = 'GPKG'
-        options.layerName = layerNname
-        if append:
-            options.actionOnExistingFile = (
-                QgsVectorFileWriter.CreateOrOverwriteLayer
-            )
-
-        writer = QgsVectorFileWriter.create(
-            gpkg_path,
-            schema,
-            geometry,
-            QgsCoordinateReferenceSystem(crs),
-            QgsCoordinateTransformContext(),
-            options,
-        )
-        del writer
-
-        return True

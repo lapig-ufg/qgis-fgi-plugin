@@ -1,0 +1,16 @@
+Metadata-Version: 1.1
+Name: sat-stac
+Version: 0.4.1
+Summary: A Python library for working with Spatio-Temporal Asset Catalogs (STAC)
+Home-page: https://github.com/sat-utils/sat-stac.git
+Author: Matthew Hanson (matthewhanson)
+Author-email: matt.a.hanson@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7

@@ -1,0 +1,20 @@
+Metadata-Version: 1.1
+Name: sat-search
+Version: 0.3.0
+Summary: A python client for sat-api
+Home-page: https://github.com/sat-utils/sat-search
+Author: Matthew Hanson (matthewhanson)
+Author-email: matt.a.hanson@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Framework :: Pytest
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Scientific/Engineering
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: Freeware
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5

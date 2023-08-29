@@ -1,5 +1,6 @@
 import os
-def get_config(default_tiles_path=None, results_path=None, empty=False):
+import json
+def init_config(default_tiles_path=None, results_path=None, empty=False):
     """
     Returns the configuration object as specified.
 
@@ -37,7 +38,7 @@ def get_config(default_tiles_path=None, results_path=None, empty=False):
         'showImportsButtons': True,
         'loadConfigFrom': 'local',
         'configURL': '',
-        'inspectionConfig': {
+        'inspectionConfig': json.dumps({
             'bing_maps_key': 'UomkpKbLwbM1R9IfxTll~NFnQkcDTeQaWvbc96cVmQw~AjK0oEujZwZrnsBdSmg5cM47Lu25vSf1Hhuqxvc_IzTvo-dC4AzGh8wVXCFLgGO4',
             'cell_size': 10,
             'classes': [
@@ -57,6 +58,6 @@ def get_config(default_tiles_path=None, results_path=None, empty=False):
                     'rgba': '255,51,0,77'
                 }
             ],
-        }
+        })
     }
     return config

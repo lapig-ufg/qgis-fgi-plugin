@@ -11,7 +11,6 @@ from PyQt5.QtWidgets import QPushButton
 from qgis import processing
 from qgis.core import (
     Qgis,
-    QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsFeatureRequest,
@@ -27,9 +26,14 @@ from qgis.PyQt.QtWidgets import QApplication, QListWidgetItem, QMessageBox
 from requests.utils import requote_uri
 
 from .export import Writer
-from .models.dependencies.xmltodict import xmltodict
+from ..dependencies.xmltodict import xmltodict
+
 from .tools import ClipboardPointer, ToolPointer
 
+
+# from .s2 import Sentinel
+# For debuging
+# from memory_profiler import profile
 
 class InspectionController:
     """QGIS Plugin Implementation."""
@@ -196,6 +200,7 @@ class InspectionController:
         except ValueError:
             return False
 
+    # @profile
     def get_feature(self, featureId):
         feature = None
         all_features = self.parent.current_pixels_layer.getFeatures()
@@ -361,6 +366,7 @@ class InspectionController:
                 duration=10,
             )
 
+    # @profile
     def set_default_class(self, layer):
         image_date = self.parent.dock_widget.imageDate.date().toString(
             'yyyy-MM-dd'
@@ -457,6 +463,7 @@ class InspectionController:
         img_path = path.join(project_root, 'img', 'not_found.png')
         return QPixmap(img_path)
 
+    # @profile
     def load_thumbnail_bing(self, url):
         try:
             if url is None:
@@ -470,6 +477,7 @@ class InspectionController:
 
         self.get_widget_object('thum').setPixmap(pixmap)
 
+    # @profile
     def load_tile_metadata_from_bing(self, geom):
         source_crs = QgsCoordinateReferenceSystem(3857)
         dest_crs = QgsCoordinateReferenceSystem(4326)
@@ -548,6 +556,7 @@ class InspectionController:
 
         self.parent.dock_widget.bingPeriod.setText(str(period.days))
 
+    # @profile
     def create_grid_pixels(self, tile):
         # Helper function for path normalization and file removal
         def remove_path(*args):
@@ -589,6 +598,8 @@ class InspectionController:
         self.parent.update_progress(66)
         cell_size = self.parent.campaigns_config.get('cell_size', 10)
         extent = geom.boundingBox()
+        # thread = Sentinel(geom.asJson())
+        # thread.start()
         params = {
             'TYPE': 2, 'EXTENT': extent, 'HSPACING': cell_size,
             'VSPACING': cell_size, 'HOVERLAY': 0, 'VOVERLAY': 0,
@@ -632,12 +643,14 @@ class InspectionController:
         del grid
         gc.collect()
 
+    # @profile
     def clear_buttons(self, layout):
         for i in reversed(range(layout.count())):
             widget = layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
 
+    # @profile
     def remove_selection(self):
         self.parent.selectedClass = None
         self.parent.iface.actionSelectFreehand().trigger()
@@ -646,6 +659,7 @@ class InspectionController:
             f'background-color: transparent; border-radius: 5px; padding :5px; border: 2px solid red'
         )
 
+    # @profile
     def on_click_class(self, item):
         """Write config in config file"""
         color = ''
@@ -678,6 +692,7 @@ class InspectionController:
                 duration=5,
             )
 
+    # @profile
     def clear_list(self, list_widget):
         list_widget.clear()
         for i in range(list_widget.count()):
@@ -710,6 +725,7 @@ class InspectionController:
                 self.get_widget_object('classes').addItem(item)
                 self.get_widget_object('classes').setItemWidget(item, button)
 
+    # @profile
     def init_inspection_tile(self, no_image_date=False):
         """Load all class of type inspection"""
 
@@ -730,6 +746,7 @@ class InspectionController:
 
         self.get_widget_object('btnClearSelection').setVisible(True)
 
+    # @profile
     def clear_container_classes(self, finished=False):
 
         if self.parent.dock_widget:
@@ -833,6 +850,7 @@ class InspectionController:
             self.parent.onClosePlugin()
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+    # @profile
     def set_same_image(self, value):
         if self.inspecting:
             layer = self.parent.current_pixels_layer
@@ -859,6 +877,7 @@ class InspectionController:
             layer.commitChanges()
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+    # @profile
     def import_classes_bing(self):
 
         layer = self.parent.current_pixels_layer
@@ -915,6 +934,7 @@ class InspectionController:
         layer.triggerRepaint()
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+    # @profile
     def generate_gpkg(self, layer):
         end_time = datetime.datetime.now()
         name = self.parent.get_config('interpreterName')
@@ -926,12 +946,14 @@ class InspectionController:
             f'DESCRIPTION=start_time: {self.inspection_start_datetime.strftime("%Y-%m-%d %H:%M:%S")} | end_time: {end_time.strftime("%Y-%m-%d %H:%M:%S")} | time_in_seconds: {str((end_time - self.inspection_start_datetime).total_seconds())} | interpreter: {self.normalize(name)}'
         ]
 
-        return Writer(self, layer, metadata).gpkg()
+        with Writer(self, layer, metadata) as w:
+            return w.gpkg()
 
+    # @profile
     def finish_inspection(self):
         self.parent.iface.messageBar().pushMessage(
-                    '', 'Inspection FINISHED!', level=Qgis.Info, duration=15
-                )
+            '', 'Inspection FINISHED!', level=Qgis.Info, duration=15
+        )
         self.get_widget_object('tileInfo').setText(f'INSPECTION FINISHED!')
         current_directory = path.dirname(
             path.abspath(__file__))
@@ -950,6 +972,7 @@ class InspectionController:
         time.sleep(2)
         self.parent.onClosePlugin()
 
+    # @profile
     def next_tile(self, no_image_date=False, tile_index=None):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         layer = None
@@ -1014,6 +1037,7 @@ class InspectionController:
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
         self.parent.iface.actionPan().trigger()
 
+    # @profile
     def load_tile_from_file(self, tile):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         self.parent.current_pixels_layer = None
@@ -1054,10 +1078,11 @@ class InspectionController:
         ).setItemVisibilityChecked(False)
         self.parent.dock_widget.tabWidget.setCurrentIndex(2)
         self.parent.dock_widget.tabWidget.setTabEnabled(2, True)
-        if isinstance(self.parent.current_pixels_layer, QgsVectorLayer):
-            self.parent.current_pixels_layer.removeSelection()
-            self.parent.current_pixels_layer.triggerRepaint()
+        # if isinstance(self.parent.current_pixels_layer, QgsVectorLayer):
+        #     self.parent.current_pixels_layer.removeSelection()
+        #     self.parent.current_pixels_layer.triggerRepaint()
 
+    # @profile
     def on_change_tab(self, tab):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         if tab == 1:
@@ -1094,7 +1119,6 @@ class InspectionController:
             ).setItemVisibilityChecked(False)
             self.parent.dock_widget.tabWidget.setCurrentIndex(2)
             self.parent.dock_widget.tabWidget.setTabEnabled(2, True)
-        self.parent.iface.mapCanvas().repaint()
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
     def get_tile_index(self, feature_id):
@@ -1151,7 +1175,5 @@ class InspectionController:
             self.parent.update_progress(100)
             self.parent.finish_progress()
 
-
-
-
-
+        layer = None
+        gc.collect()
