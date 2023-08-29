@@ -225,15 +225,15 @@ class QGISFGIPlugin(QObject):
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/global_inspection/icon.png'
+        icon_path = os.path.join(os.path.dirname(__file__), 'icon.png')
         self.add_action(
             icon_path,
-            text=self.tr('Inspect Tiles'),
+            text=self.tr('Fast Grid Inspection'),
             callback=self.run,
             parent=self.iface.mainWindow(),
         )
         self.reload_button = QPushButton("")
-        self.reload_button.setToolTip("Click here to reload the plugin Global Inspection Tiles")
+        self.reload_button.setToolTip("Click here to reload the plugin QGIS Fast Grid")
         reload_icon_path = os.path.join(os.path.dirname(__file__), 'img', 'reload.png')
         reload_icon = QIcon(reload_icon_path)
         self.reload_button.setIcon(reload_icon)
@@ -298,7 +298,7 @@ class QGISFGIPlugin(QObject):
 
         # print "** UNLOAD QGISFGIPlugin"
         for action in self.actions:
-            self.iface.removePluginMenu(self.tr('&Inspection Tiles'), action)
+            self.iface.removePluginMenu(self.tr('&Fast Grid Inspection'), action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
@@ -845,6 +845,8 @@ class QGISFGIPlugin(QObject):
             self.enable_config_buttons(enable=True)
             self.show_local_config(show=True)
             self.iface.actionZoomToSelected().trigger()
+            self.current_tile_index = 0
+            self.current_pixels_layer = None
 
     def load_campaign_conf(self):
         if self.load_config_from == 'local':

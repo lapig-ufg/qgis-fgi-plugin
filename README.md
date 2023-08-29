@@ -36,23 +36,6 @@ The "Global Inspection Tiles" plugin provides an array of features designed to s
 - **Feature**: Ability to customize inspection settings.
 - **Benefit**: Allows for a more tailored inspection process, fitting specific project needs and requirements.
 
-## Changelog & Updates
-
-### v3 - Latest
-
-- Introduces the ability to customize inspection settings.
-
-### v2
-
-- Removed the livestock option.
-- Added support for Bing images.
-
-### v1
-
-- Initial release.
-- Sample generation for pastures and livestock.
-
-
 ### Reporting Issues
 
 If you've found a bug or would like to suggest a new feature, please open an issue on GitHub. When reporting bugs, make sure to provide detailed information so that the issue can be replicated. Use the following link to open an issue: [GitHub Issues](https://github.com/lapig-ufg/inspection-tiles/issues).

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>GlobalInspectionTilesDockWidgetBase</class>
- <widget class="QDockWidget" name="GlobalInspectionTilesDockWidgetBase">
+ <class>QGISFGIPluginDockWidgetBase</class>
+ <widget class="QDockWidget" name="QGISFGIPluginDockWidgetBase">
   <property name="enabled">
    <bool>true</bool>
   </property>
@@ -38,7 +38,7 @@
    <set>Qt::AllDockWidgetAreas</set>
   </property>
   <property name="windowTitle">
-   <string>GLOBAL INSPECTION TILES</string>
+   <string>Fast Grid Inspection</string>
   </property>
   <widget class="QWidget" name="dockWidgetContents">
    <property name="sizePolicy">
