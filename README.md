@@ -52,45 +52,12 @@ The "Global Inspection Tiles" plugin provides an array of features designed to s
 - Initial release.
 - Sample generation for pastures and livestock.
 
-## Feedback & Contribution
-
-We're thrilled that you're interested in contributing to the "Global Inspection Tiles" plugin! Whether you're a developer, a GIS expert, or someone who just wants to make things better, your contribution is welcome. Below you'll find ways to provide feedback or contribute to the development.
-
-### Contributions via Pull Requests
-
-1. **Fork the Repository**: Start by forking the [Global Inspection Tiles repository](https://github.com/lapig-ufg/inspection-tiles).
-
-2. **Clone Your Fork**: Clone your fork locally to make changes.
-
-    ```bash
-    git clone https://github.com/yourusername/inspection-tiles.git
-    ```
-
-3. **Create a New Branch**: Always create a new branch for your changes.
-
-    ```bash
-    git checkout -b feature/my-feature-branch
-    ```
-
-4. **Commit Your Changes**: Make your changes and commit them.
-
-    ```bash
-    git commit -m "Description of the changes"
-    ```
-
-5. **Push to GitHub**: Push your changes to your GitHub repository.
-
-    ```bash
-    git push origin feature/my-feature-branch
-    ```
-
-6. **Submit a Pull Request**: Finally, submit a pull request from your fork to the original repository.
 
 ### Reporting Issues
 
 If you've found a bug or would like to suggest a new feature, please open an issue on GitHub. When reporting bugs, make sure to provide detailed information so that the issue can be replicated. Use the following link to open an issue: [GitHub Issues](https://github.com/lapig-ufg/inspection-tiles/issues).
 
-### Feedback and Queries
+### Feedback
 
 Your thoughts and suggestions about the "Global Inspection Tiles" plugin are invaluable to us. Whether it's new ideas, improvements, or other types of feedback, we're eager to hear what you have to say and excited about the contributions you may bring to the project!
 

@@ -3,17 +3,18 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Global Inspection Tiles
+name=QGIS Fast Grid Inspection (FGI)
 qgisMinimumVersion=3.0
-description=The "Global Inspection Tiles" plugin is a versatile tool designed to innovate the way users generate and classify samples. Originally developed to assist in the generation of samples for creating a comprehensive global map of pastures, its functionality extends far beyond just that.
+description=This plugin aims to allow the generation and classification of samples from predefined regions.
 version=3.0.0
 author=Tharles de Sousa Andrade | LAPIG - UFG
 email=irtharles@gmail.com
 
-about=This plugin is one of the tools to assist in the generation of samples for the production of the global map of pasture.
+about=The "Global Inspection Tiles" plugin is a versatile tool designed to innovate the way users generate and classify samples. Originally developed to assist in the generation of samples for creating a comprehensive global map of pastures, its functionality extends far beyond just that.
 
-tracker=https://github.com/lapig-ufg/inspection-tiles/issues
-repository=https://github.com/lapig-ufg/inspection-tiles
+
+tracker=https://github.com/lapig-ufg/qgis-fgi-plugin/issues
+repository=https://github.com/lapig-ufg/qgis-fgi-plugin
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,9 +24,9 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=samples, features, pixels, bing, google
+tags=samples, features, pixels, bing, google, grid
 
-homepage=https://github.com/lapig-ufg/inspection-tiles/blob/main/README.md
+homepage=https://github.com/lapig-ufg/qgis-fgi-plugin/wiki
 category=Plugins
 icon=icon.png
 # experimental flag

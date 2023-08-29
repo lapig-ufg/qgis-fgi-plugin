@@ -16,7 +16,7 @@ import unittest
 from qgis.PyQt.QtGui import QDockWidget
 from utilities import get_qgis_app
 
-from global_inspection_dockwidget import GlobalInspectionTilesDockWidget
+from qgis_fgi_plugin_dockwidget import GlobalInspectionTilesDockWidget
 
 QGIS_APP = get_qgis_app()
 
