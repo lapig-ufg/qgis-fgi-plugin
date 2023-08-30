@@ -15,11 +15,11 @@ The "QGIS Fast Grid Inspection" plugin is a versatile tool designed for use in Q
 
 ### Applications:
 
-While its primary application revolves around assisting in the creation of a global pasture map, the adaptability of the "Global Inspection Tiles" plugin means it can be applied across a multitude of scenarios. Whether you're an environmental scientist tracking specific terrains, a researcher studying different land use patterns, or simply someone curious about exploring diverse geographic regions through samples, this plugin is your go-to tool.
+While its primary application revolves around assisting in the creation of a global pasture map, the adaptability of the QGIS Fast Grid Inspection plugin means it can be applied across a multitude of scenarios. Whether you're an environmental scientist tracking specific terrains, a researcher studying different land use patterns, or simply someone curious about exploring diverse geographic regions through samples, this plugin is your go-to tool.
 
 ### Features & Benefits
 
-The "Global Inspection Tiles" plugin provides an array of features designed to streamline and enhance the generation and classification of samples. Below are some of the key features and their associated benefits.
+The QGIS Fast Grid Inspection plugin provides an array of features designed to streamline and enhance the generation and classification of samples. Below are some of the key features and their associated benefits.
 
 #### Sample Generation for Pastures (v1)
 

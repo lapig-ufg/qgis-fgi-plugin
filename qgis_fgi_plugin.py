@@ -98,7 +98,7 @@ class QGISFGIPlugin(QObject):
 
             # Declare instance attributes
             self.actions = []
-            self.menu = self.tr('&Global Inspection Tiles')
+            self.menu = self.tr('&QGIS Fast Grid Inspection')
             # TODO: We are going to let the user set this up in a future iteration
             self.toolbar = self.iface.addToolBar('QGISFGIPlugin')
             self.toolbar.setObjectName('QGISFGIPlugin')
