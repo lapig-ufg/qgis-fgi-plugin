@@ -16,7 +16,7 @@ import unittest
 from qgis.PyQt.QtGui import QDockWidget
 from utilities import get_qgis_app
 
-from qgis_fgi_plugin_dockwidget import GlobalInspectionTilesDockWidget
+from qgis_fgi_plugin_dockwidget import QGISFGIPluginDockWidget
 
 QGIS_APP = get_qgis_app()
 
@@ -26,7 +26,7 @@ class GlobalInspectionTilesDockWidgetTest(unittest.TestCase):
 
     def setUp(self):
         """Runs before each test."""
-        self.dockwidget = GlobalInspectionTilesDockWidget(None)
+        self.dockwidget = QGISFGIPluginDockWidget(None)
 
     def tearDown(self):
         """Runs after each test."""
@@ -38,6 +38,6 @@ class GlobalInspectionTilesDockWidgetTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    suite = unittest.makeSuite(GlobalInspectionTilesDialogTest)
+    suite = unittest.makeSuite(QGISFGIPluginDockWidget)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)

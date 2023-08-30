@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/global_inspection" >
+    <qresource prefix="/plugins/qgis-fgi-plugin" >
         <file>icon.png</file>
     </qresource>
 </RCC>

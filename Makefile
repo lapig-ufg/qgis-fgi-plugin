@@ -38,15 +38,15 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	global_inspection.py global_inspection_dockwidget.py
+	qgis_fgi_plugin.py qgis_fgi_plugin_dockwidget.py
 
 PLUGINNAME = global_inspection
 
 PY_FILES = \
 	__init__.py \
-	global_inspection.py global_inspection_dockwidget.py
+	qgis_fgi_plugin.py qgis_fgi_plugin_dockwidget.py
 
-UI_FILES = global_inspection_dockwidget_base.ui
+UI_FILES = qgis_fgi_plugin_dockwidget_base.ui
 
 EXTRAS = metadata.txt icon.png
 
@@ -65,7 +65,7 @@ PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
 #	* Windows:
 #	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
 
-QGISDIR=/home/tharles/.local/share/QGIS/QGIS3/profiles/default/python/plugins/
+QGISDIR=~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/
 
 #################################################
 # Normally you would not need to edit below here

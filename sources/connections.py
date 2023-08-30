@@ -3,85 +3,67 @@ from PyQt5.QtCore import QSettings
 
 def xyz(self):
     # Sources
-    sources = []
-    sources.append(
-        [
-            'connections-xyz',
-            'Google Maps',
-            '',
-            '',
-            '',
-            'https://mt1.google.com/vt/lyrs=m&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
-            '',
-            '19',
-            '0',
-        ]
-    )
-    sources.append(
-        [
-            'connections-xyz',
-            'Google Satellite',
-            '',
-            '',
-            '',
-            'https://mt1.google.com/vt/lyrs=s&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
-            '',
-            '19',
-            '0',
-        ]
-    )
-    sources.append(
-        [
-            'connections-xyz',
-            'Google Terrain',
-            '',
-            '',
-            '',
-            'https://mt1.google.com/vt/lyrs=t&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
-            '',
-            '19',
-            '0',
-        ]
-    )
-    sources.append(
-        [
-            'connections-xyz',
-            'Google Terrain Hybrid',
-            '',
-            '',
-            '',
-            'https://mt1.google.com/vt/lyrs=p&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
-            '',
-            '19',
-            '0',
-        ]
-    )
-    sources.append(
-        [
-            'connections-xyz',
-            'Google Satellite Hybrid',
-            '',
-            '',
-            '',
-            'https://mt1.google.com/vt/lyrs=y&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
-            '',
-            '19',
-            '0',
-        ]
-    )
-    sources.append(
-        [
-            'connections-xyz',
-            'Esri Satellite',
-            '',
-            '',
-            'Requires ArcGIS Onlinesubscription',
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%7Bz%7D/%7By%7D/%7Bx%7D',
-            '',
-            '17',
-            '0',
-        ]
-    )
+    sources = [[
+        'connections-xyz',
+        'Google Maps',
+        '',
+        '',
+        '',
+        'https://mt1.google.com/vt/lyrs=m&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
+        '',
+        '19',
+        '0',
+    ], [
+        'connections-xyz',
+        'Google Satellite',
+        '',
+        '',
+        '',
+        'https://mt1.google.com/vt/lyrs=s&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
+        '',
+        '19',
+        '0',
+    ], [
+        'connections-xyz',
+        'Google Terrain',
+        '',
+        '',
+        '',
+        'https://mt1.google.com/vt/lyrs=t&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
+        '',
+        '19',
+        '0',
+    ], [
+        'connections-xyz',
+        'Google Terrain Hybrid',
+        '',
+        '',
+        '',
+        'https://mt1.google.com/vt/lyrs=p&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
+        '',
+        '19',
+        '0',
+    ], [
+        'connections-xyz',
+        'Google Satellite Hybrid',
+        '',
+        '',
+        '',
+        'https://mt1.google.com/vt/lyrs=y&x=%7Bx%7D&y=%7By%7D&z=%7Bz%7D',
+        '',
+        '19',
+        '0',
+    ], [
+        'connections-xyz',
+        'Esri Satellite',
+        '',
+        '',
+        'Requires ArcGIS Onlinesubscription',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%7Bz%7D/%7By%7D/%7Bx%7D',
+        '',
+        '17',
+        '0',
+    ]]
 
     # sources.append(["connections-xyz","Stamen Terrain", "", "", "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL", "http://tile.stamen.com/terrain/%7Bz%7D/%7Bx%7D/%7By%7D.png", "", "20", "0"])
     # sources.append(["connections-xyz","Stamen Toner", "", "", "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL", "http://tile.stamen.com/toner/%7Bz%7D/%7Bx%7D/%7By%7D.png", "", "20", "0"])
