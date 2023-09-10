@@ -9,8 +9,8 @@ from qgis.core import QgsRasterLayer, QgsProject, QgsMultiBandColorRenderer, Qgs
 # Set the STAC API URL
 STAC_API_URL = 'https://earth-search.aws.element84.com/v0'
 
-# Define the coordinates of the point (Brasília)
 collection = 'sentinel-s2-l2a-cogs'
+
 monthly_composites = []
 
 class Sentinel(QThread):
