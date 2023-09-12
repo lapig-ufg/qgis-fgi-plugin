@@ -52,3 +52,8 @@ If you've found a bug or would like to suggest a new feature, please open an iss
 Your thoughts and suggestions about the "QGIS Fast Grid Inspection" plugin are invaluable to us. Whether it's new ideas, improvements, or other types of feedback, we're eager to hear what you have to say and excited about the contributions you may bring to the project!
 
 For any questions or to start a discussion, please feel free to reach out at [irtharles@gmail.com](mailto:irtharles@gmail.com).
+
+### Acknowledgements & Funding
+
+This work is supported by [WRI](https://wri.org), [LAPIG/UFG](http://lapig.iesa.ufg.br), [OpenGeoHub Foundation](https://opengeohub.org/) and [IIASA](https://iiasa.ac.at/) and has received funding from [Land and Carbon Lab](https://www.landcarbonlab.org/) through the [Global Pasture Watch](https://www.wri.org/events/2023/4/global-pasture-watch-mapping-monitoring-global-grasslands-livestock).
+
