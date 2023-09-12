@@ -53,3 +53,11 @@ Your thoughts and suggestions about the "QGIS Fast Grid Inspection" plugin are i
 
 For any questions or to start a discussion, please feel free to reach out at [irtharles@gmail.com](mailto:irtharles@gmail.com).
 
+### Roadmap
+
+- [ ] Build an Installation Guide section
+- [ ] Build an Usage Guide section
+- [ ] Build a Tips and Tricks section
+- [ ] Choose the Licensing type (i.e. MIT) and build a section
+- [ ] Build a Contributing section
+- [ ] Build an Acknowledgements & Funding section
