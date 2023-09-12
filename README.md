@@ -6,6 +6,8 @@
 
 The "QGIS Fast Grid Inspection" plugin is a versatile tool designed for use in QGIS, aimed at innovating the way users generate and classify samples. Originally developed to assist in creating a comprehensive global map of pastures, its functionality extends far beyond just that application. Whether you're mapping pastures or undertaking any other geospatial analysis, this plugin offers a range of features to enhance your workflow in QGIS.
 
+![QGIS Fast Grid Inspection (FGI)](./img/fgi.gif)
+
 ### Primary Features:
 
 1. **Sample Generation**: Easily generate samples from predefined regions, streamlining the process and making it efficient.
@@ -35,6 +37,11 @@ The QGIS Fast Grid Inspection plugin provides an array of features designed to s
 
 - **Feature**: Ability to customize inspection settings.
 - **Benefit**: Allows for a more tailored inspection process, fitting specific project needs and requirements.
+
+
+### User Guide
+
+For a more detailed understanding, including step-by-step instructions and advanced functionalities, please refer to our [QGIS Fast Grid Inspection (FGI) - User Guide](https://github.com/lapig-ufg/qgis-fgi-plugin/wiki).
 
 ### Reporting Issues
 
