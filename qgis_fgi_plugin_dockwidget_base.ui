@@ -321,6 +321,16 @@
           </property>
           <layout class="QHBoxLayout" name="fieldInterpreter">
            <item>
+            <widget class="QLabel" name="modeLabel">
+             <property name="text">
+              <string>Mode</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboMode"/>
+           </item>
+           <item>
             <widget class="QLabel" name="label_4">
              <property name="text">
               <string>Interpreter name</string>
@@ -1064,7 +1074,7 @@ border-radius: 3px</string>
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="showImportsGroup"/>
   <buttongroup name="loadConfigGroup"/>
+  <buttongroup name="showImportsGroup"/>
  </buttongroups>
 </ui>

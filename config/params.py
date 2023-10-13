@@ -36,6 +36,7 @@ def init_config(default_tiles_path=None, results_path=None, empty=False):
         'workingDirectory': working_directory,
         'imageSource': 'BING',
         'showImportsButtons': True,
+        'mode': 'INSPECT',
         'loadConfigFrom': 'local',
         'configURL': '',
         'inspectionConfig': json.dumps({

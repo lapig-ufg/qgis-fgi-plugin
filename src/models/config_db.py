@@ -38,6 +38,7 @@ def init_db():
                 workingDirectory TEXT,
                 imageSource TEXT,
                 showImportsButtons BOOLEAN,
+                mode TEXT,
                 loadConfigFrom TEXT,
                 configURL TEXT,
                 inspectionConfig TEXT

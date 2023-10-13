@@ -24,9 +24,8 @@ from qgis.PyQt.QtCore import Qt, QVariant
 from qgis.PyQt.QtGui import QColor, QCursor, QPixmap
 from qgis.PyQt.QtWidgets import QApplication, QListWidgetItem, QMessageBox
 from requests.utils import requote_uri
-
+import xml.etree.ElementTree as ET
 from .export import Writer
-from ..dependencies.xmltodict import xmltodict
 
 from .tools import ClipboardPointer, ToolPointer
 
@@ -165,9 +164,7 @@ class InspectionController:
                 ]
             )
 
-        def rule_based_symbology(
-                layer, renderer, label, expression, symbol, color
-        ):
+        def rule_based_symbology(layer, renderer, label, expression, symbol, color):
             root_rule = renderer.rootRule()
             rule = root_rule.children()[0].clone()
             rule.setLabel(label)
@@ -177,20 +174,21 @@ class InspectionController:
             layer.setRenderer(renderer)
             layer.triggerRepaint()
 
-        for rule in rules:
-            rule_based_symbology(
-                self.parent.current_pixels_layer,
-                renderer,
-                rule[0],
-                rule[1],
-                symbol,
-                rule[2],
-            )
+        if self.parent.current_pixels_layer:
+            for rule in rules:
+                rule_based_symbology(
+                    self.parent.current_pixels_layer,
+                    renderer,
+                    rule[0],
+                    rule[1],
+                    symbol,
+                    rule[2],
+                )
 
-        renderer.rootRule().removeChildAt(0)
-        self.parent.iface.layerTreeView().refreshLayerSymbology(
-            self.parent.current_pixels_layer.id()
-        )
+            renderer.rootRule().removeChildAt(0)
+            self.parent.iface.layerTreeView().refreshLayerSymbology(
+                self.parent.current_pixels_layer.id()
+            )
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
     def date_is_valid(self, date_text):
@@ -508,18 +506,21 @@ class InspectionController:
             )
             data = urllib.request.urlopen(url).read()
 
-            metadata_bing = xmltodict.parse(data)
-            metadata_bing = (
-                metadata_bing.pop('Response')
-                .get('ResourceSets')
-                .get('ResourceSet')
-                .get('Resources')
-                .get('ImageryMetadata')
-            )
+            root = ET.fromstring(data)
 
-            start_date = metadata_bing.get('VintageStart')
-            end_date = metadata_bing.get('VintageEnd')
-            image_url = metadata_bing.get('ImageUrl')
+            # Define the namespace mapping
+            ns = {'ns0': 'http://schemas.microsoft.com/search/local/ws/rest/v1'}
+
+            # Navigate the XML tree using the namespace prefix
+            imagery_metadata = root.find("ns0:ResourceSets/ns0:ResourceSet/ns0:Resources/ns0:ImageryMetadata",
+                                         namespaces=ns)
+
+            if imagery_metadata is not None:
+                start_date = imagery_metadata.findtext("ns0:VintageStart", namespaces=ns)
+                end_date = imagery_metadata.findtext("ns0:VintageEnd", namespaces=ns)
+                image_url = imagery_metadata.findtext("ns0:ImageUrl", namespaces=ns)
+            else:
+                start_date, end_date, image_url = None, None, None
 
             if start_date is None or end_date is None:
                 start_date = '2000-01-01'
@@ -543,21 +544,54 @@ class InspectionController:
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
             print(e)
 
+        self.set_dates_bing(start_date, end_date)
+
+    def set_dates_bing(self, start_date, end_date):
+        if isinstance(start_date, QVariant):
+            start_date = '2000-01-01'
+            self.parent.iface.messageBar().pushMessage(
+                'REVIEW TILE',
+                'The start date of Bing image was not found.',
+                level=Qgis.Critical,
+                duration=4,
+            )
+
+        if isinstance(end_date, QVariant):
+            end_date = '2000-01-01'
+            self.parent.iface.messageBar().pushMessage(
+                'REVIEW TILE',
+                'The end date of Bing image was not found.',
+                level=Qgis.Critical,
+                duration=4,
+            )
+
         date_start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
         date_end = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
         period = date_end - date_start
-
-        # self.load_thumbnail_bing(image_url)
-        # self.bing_thumb_url = image_url
 
         self.parent.dock_widget.bingStartDate.setDateTime(date_start)
         self.parent.dock_widget.bingEndDate.setDateTime(date_end)
 
         self.parent.dock_widget.bingPeriod.setText(str(period.days))
 
+    def set_date_google(self, date):
+        if isinstance(date, QVariant):
+            date = '2000-01-01'
+            self.parent.iface.messageBar().pushMessage(
+                'REVIEW TILE',
+                'The date of the Google image was not found.',
+                level=Qgis.Critical,
+                duration=4,
+            )
+
+        dtime = datetime.datetime.strptime(date, '%Y-%m-%d')
+        self.parent.dock_widget.imageDate.setDateTime(dtime)
+
     # @profile
     def create_grid_pixels(self, tile):
+        out = None
+
         # Helper function for path normalization and file removal
         def remove_path(*args):
             p = path.normpath(path.join(*args))
@@ -590,58 +624,76 @@ class InspectionController:
         self.tile_geom = geom
 
         self.parent.update_progress(63)
-        # self.load_tile_metadata_from_bing(geom)
-
         active_layer = self.parent.layer_bing if self.parent.get_config(
             'imageSource') == 'BING' else self.parent.layer_google
         QgsProject.instance().layerTreeRoot().findLayer(active_layer.id()).setItemVisibilityChecked(True)
         self.parent.update_progress(66)
-        cell_size = self.parent.campaigns_config.get('cell_size', 10)
-        extent = geom.boundingBox()
-        # thread = Sentinel(geom.asJson())
-        # thread.start()
-        params = {
-            'TYPE': 2, 'EXTENT': extent, 'HSPACING': cell_size,
-            'VSPACING': cell_size, 'HOVERLAY': 0, 'VOVERLAY': 0,
-            'CRS': 'EPSG:3857', 'OUTPUT': grid_output
-        }
-        self.parent.update_progress(68)
-        out = processing.run('native:creategrid', params)
 
-        self.parent.update_progress(70)
-        grid = QgsVectorLayer(out['OUTPUT'], f'{tile[0]}_{self.interpreterName}', 'ogr')
-        data_provider = grid.dataProvider()
-        grid.startEditing()
-        data_provider.addAttributes([
-            QgsField('bing_class', QVariant.String),
-            QgsField('bing_image_start_date', QVariant.String),
-            QgsField('bing_image_end_date', QVariant.String),
-            QgsField('google_class', QVariant.String),
-            QgsField('google_image_start_date', QVariant.String),
-            QgsField('google_image_end_date', QVariant.String),
-            QgsField('missing_image_date', QVariant.Bool),
-            QgsField('same_image_bing_google', QVariant.Bool)
-        ])
+        selected_mode = self.parent.dock_widget.comboMode.currentText()
 
-        grid.commitChanges()
+        grid_path = None
+        layer_name = None
+        if selected_mode == 'INSPECT':
 
-        self.parent.update_progress(80)
-        self.parent.current_pixels_layer = grid
+            cell_size = self.parent.campaigns_config.get('cell_size', 10)
+            extent = geom.boundingBox()
+            params = {
+                'TYPE': 2, 'EXTENT': extent, 'HSPACING': cell_size,
+                'VSPACING': cell_size, 'HOVERLAY': 0, 'VOVERLAY': 0,
+                'CRS': 'EPSG:3857', 'OUTPUT': grid_output
+            }
+            self.parent.update_progress(68)
+            out = processing.run('native:creategrid', params)
+            grid_path = out['OUTPUT']
+            layer_name = f'{tile[0]}_{self.interpreterName}'
+            self.parent.update_progress(70)
 
-        QgsProject().instance().addMapLayer(grid)
-        self.parent.iface.setActiveLayer(grid)
-        self.parent.iface.zoomToActiveLayer()
+        else:
+            grid_path = tile[2]
+            layer_name = f"{tile[1].split('.')[0]}_review"
+            self.set_dates_bing(tile[3], tile[4])
+            self.set_date_google(tile[5])
+            self.parent.load_classes()
 
-        symbol = QgsFillSymbol.createSimple({'color': '0,0,0,0', 'color_border': 'black', 'width_border': '0.1'})
-        grid.renderer().setSymbol(symbol)
-        grid.triggerRepaint()
-        grid.selectionChanged.connect(self.add_class_to_feature)
-        self.parent.add_layer(grid.id())
-        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+        if grid_path is not None:
 
-        del out
-        del grid
-        gc.collect()
+            grid = QgsVectorLayer(grid_path, layer_name, 'ogr')
+            data_provider = grid.dataProvider()
+            grid.startEditing()
+
+            data_provider.addAttributes([
+                QgsField('bing_class', QVariant.String),
+                QgsField('bing_image_start_date', QVariant.String),
+                QgsField('bing_image_end_date', QVariant.String),
+                QgsField('google_class', QVariant.String),
+                QgsField('google_image_start_date', QVariant.String),
+                QgsField('google_image_end_date', QVariant.String),
+                QgsField('missing_image_date', QVariant.Bool),
+                QgsField('same_image_bing_google', QVariant.Bool)
+            ])
+
+            grid.commitChanges()
+
+            self.parent.update_progress(80)
+            self.parent.current_pixels_layer = grid
+            print('current_pixels_layer', grid)
+
+            QgsProject().instance().addMapLayer(grid)
+            self.parent.iface.setActiveLayer(grid)
+            self.parent.iface.zoomToActiveLayer()
+
+            symbol = QgsFillSymbol.createSimple({'color': '0,0,0,0', 'color_border': 'black', 'width_border': '0.1'})
+            grid.renderer().setSymbol(symbol)
+            grid.triggerRepaint()
+            grid.selectionChanged.connect(self.add_class_to_feature)
+            self.parent.add_layer(grid.id())
+            QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
+
+            if out is not None:
+                del out
+
+            del grid
+            gc.collect()
 
     # @profile
     def clear_buttons(self, layout):
@@ -1084,13 +1136,18 @@ class InspectionController:
 
     # @profile
     def on_change_tab(self, tab):
+        selected_mode = self.parent.dock_widget.comboMode.currentText()
+
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         if tab == 1:
             self.parent.iface.mapCanvas().setSelectionColor(
                 QColor(255, 255, 255, 0)
             )
             self.parent.set_config(key='imageSource', value='BING')
-            self.load_tile_metadata_from_bing(self.tile_geom)
+
+            if selected_mode == 'INSPECT':
+                self.load_tile_metadata_from_bing(self.tile_geom)
+
             self.set_feature_color()
             self.parent.load_classes()
             QgsProject.instance().layerTreeRoot().findLayer(
@@ -1110,6 +1167,9 @@ class InspectionController:
             )
             # self.load_thumbnail_bing(self.bing_thumb_url)
             self.set_feature_color()
+            if selected_mode == 'REVIEW':
+                self.parent.load_classes()
+
             self.inspecting = True
             QgsProject.instance().layerTreeRoot().findLayer(
                 self.parent.layer_google.id()

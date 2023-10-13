@@ -36,8 +36,15 @@ from qgis.core import (
     QgsProject,
     QgsRasterLayer,
     QgsVectorLayer,
+    QgsField,
+    QgsFields,
+    QgsFeature,
+    QgsProject,
+    QgsGeometry,
+    QgsVectorDataProvider,
+    QgsVectorFileWriter
 )
-from qgis.PyQt.QtCore import QCoreApplication, QSettings, Qt, QTranslator, QEvent, QObject
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, Qt, QTranslator, QEvent, QObject, QVariant
 from qgis.PyQt.QtGui import QIcon, QPixmap
 from qgis.PyQt.QtWidgets import (
     QAbstractScrollArea,
@@ -239,6 +246,7 @@ class QGISFGIPlugin(QObject):
         self.reload_button.setIcon(reload_icon)
         self.reload_button.clicked.connect(self.reload_plugin)
         self.toolbar.addWidget(self.reload_button)
+
     # --------------------------------------------------------------------------
 
     def onClosePlugin(self):
@@ -293,6 +301,7 @@ class QGISFGIPlugin(QObject):
             progress = (processed_files / total_files) * 100
             self.update_progress(progress)
         self.finish_progress()
+
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
@@ -302,6 +311,7 @@ class QGISFGIPlugin(QObject):
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+
     # --------------------------------------------------------------------------
     @staticmethod
     def is_valid_json(text):
@@ -394,6 +404,7 @@ class QGISFGIPlugin(QObject):
     def set_config(self, key, value):
         """Write config in config file"""
         set_config(key, value)
+
     # def set_config(self, key, value):
     #     """Write config in config file"""
     #     with db.atomic() as transaction:  # Start a new transaction
@@ -491,12 +502,93 @@ class QGISFGIPlugin(QObject):
                 self.tiles = [f.attributes() for f in layer.getFeatures()]
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+    def create_and_populate_tiles_review_layer(self, files):
+        # Create an empty memory layer with the required fields
+        fields = QgsFields()
+        fields.append(QgsField("name_file", QVariant.String))
+        fields.append(QgsField("path", QVariant.String))
+        fields.append(QgsField("bing_start", QVariant.String))
+        fields.append(QgsField("bing_end", QVariant.String))
+        fields.append(QgsField("google_start", QVariant.String))
+        fields.append(QgsField("google_end", QVariant.String))
+
+        tiles_review = QgsVectorLayer("Polygon?crs=EPSG:3857", "tiles_review", "memory")
+
+        provider = tiles_review.dataProvider()
+        provider.addAttributes(fields)
+        tiles_review.updateFields()
+
+        # For each file, load it, extract data and add a new feature with those attributes to the memory layer
+        for file_path in files:
+            layer = QgsVectorLayer(file_path, os.path.basename(file_path), "ogr")
+            if not layer.isValid():
+                print(f"Layer failed to load: {file_path}")
+                continue
+
+            # Extract required data from the first feature
+            first_feature = next(layer.getFeatures(), None)
+            if first_feature:
+                bing_image_start_date = first_feature['bing_image_start_date']
+                bing_image_end_date = first_feature['bing_image_end_date']
+                google_image_start_date = first_feature['google_image_start_date']
+                google_image_end_date = first_feature['google_image_end_date']
+
+                # Add a feature with these attributes to the memory layer
+                new_feature = QgsFeature()
+                new_feature.setFields(tiles_review.fields())
+                new_feature.setGeometry(QgsGeometry.fromRect(layer.extent()))
+                new_feature['name_file'] = os.path.basename(file_path)
+                new_feature['path'] = file_path
+                new_feature['bing_start'] = bing_image_start_date
+                new_feature['bing_end'] = bing_image_end_date
+                new_feature['google_start'] = google_image_start_date
+                new_feature['google_end'] = google_image_end_date
+
+                provider.addFeature(new_feature)
+
+        work_dir = self.get_config('workingDirectory')
+        output_file_path = f"{work_dir}/tiles_review_{datetime.now().strftime('%Y-%m-%d')}.gpkg"
+
+        writer = QgsVectorFileWriter.writeAsVectorFormat(
+            tiles_review,
+            output_file_path,
+            "utf-8",
+            tiles_review.crs(),
+            "GPKG"
+        )
+
+        if writer[0] == QgsVectorFileWriter.NoError:
+            print(f"Successfully saved to {output_file_path}")
+        else:
+            print("Failed to save:", writer[1])
+
+        return output_file_path
+
+    def create_tiles_file_from_dir(self):
+        directory = QFileDialog.getExistingDirectory(
+            self.dock_widget,
+            'Choose the directory with the files containing the tiles',
+            expanduser('~'),
+            QFileDialog.ShowDirsOnly,
+        )
+
+        # If user doesn't select any directory, just return an empty list
+        if not directory:
+            return []
+
+        # Get all files in the directory
+        files = [os.path.join(directory, f) for f in os.listdir(directory) if
+                 os.path.isfile(os.path.join(directory, f))]
+        return self.create_and_populate_tiles_review_layer(files)
+
     def open_tiles_file(self, from_config=False):
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
 
         """Open Tiles file Dialog"""
+        selected_mode = self.dock_widget.comboMode.currentText()
 
         interpreter_name = self.dock_widget.interpreterName.text()
+
         if interpreter_name != '':
             self.set_config(
                 key='interpreterName', value=interpreter_name.upper()
@@ -507,12 +599,16 @@ class QGISFGIPlugin(QObject):
             self.dock_widget.tabWidget.setCurrentIndex(1)
             self.current_tile_index = self.get_config('currentTileIndex')
         else:
-            layer_path = str(
-                QFileDialog.getOpenFileName(
-                    caption='Escolha o arquivo com os tiles',
-                    filter='Geopackage (*gpkg)',
-                )[0]
-            )
+            if selected_mode == 'INSPECT':
+                layer_path = str(
+                    QFileDialog.getOpenFileName(
+                        caption='Choose the file with the tiles',
+                        filter='Geopackage (*gpkg)',
+                    )[0]
+                )
+            else:
+                layer_path = self.create_tiles_file_from_dir()
+
         if layer_path != '' and exists(layer_path):
             self.tiles_layer = QgsVectorLayer(layer_path, 'tiles', 'ogr')
             symbol = QgsFillSymbol.createSimple(
@@ -644,6 +740,7 @@ class QGISFGIPlugin(QObject):
         self.dock_widget.btnConfigURL.setEnabled(enable)
         self.dock_widget.btnShowYes.setEnabled(enable)
         self.dock_widget.btnShowNo.setEnabled(enable)
+        self.dock_widget.comboMode.setEnabled(enable)
 
     def on_config_buttons_toggled(self, button):
         actions = {
@@ -751,7 +848,8 @@ class QGISFGIPlugin(QObject):
             (self.dock_widget.btnShowNo.clicked, partial(self.on_config_buttons_toggled, 'No')),
             (self.dock_widget.btnNewInspection.clicked, self.new_inspection),
             (self.dock_widget.zoom.clicked, self.zoom_to_tile_layer),
-            (self.dock_widget.btnSkip.clicked, self.inspection_controller.skip_tile)
+            (self.dock_widget.btnSkip.clicked, self.inspection_controller.skip_tile),
+            (self.dock_widget.comboMode.currentIndexChanged, self.on_mode_change)
         ]
 
         # If connecting
@@ -797,6 +895,7 @@ class QGISFGIPlugin(QObject):
         self.show_config_url(False)
         self.dock_widget.btnConfigLocal.setChecked(True)
         self.dock_widget.btnShowNo.setChecked(True)
+        self.dock_widget.comboMode.setEnabled(True)
 
         self.dock_widget.btnNext.setToolTip("Generate GPKG of the inspected and classified tile.")
         self.dock_widget.spinSearch.setToolTip("Type the FID that you want to search.")
@@ -928,6 +1027,22 @@ class QGISFGIPlugin(QObject):
         self.enable_config_buttons(enable=True)
         self.show_local_config(show=True)
 
+    def config_combo_mode(self):
+        items = ["INSPECT", "REVIEW"]
+        for item in items:
+            self.dock_widget.comboMode.addItem(item)
+
+        self.dock_widget.comboMode.setCurrentText(self.get_config('mode'))
+
+    def on_mode_change(self):
+        selected_mode = self.dock_widget.comboMode.currentText()
+        self.set_config('mode', selected_mode)
+
+        if selected_mode == 'INSPECT':
+            self.dock_widget.labelFile.setText('Tiles file (*.gpkg)')
+        else:
+            self.dock_widget.labelFile.setText('Select the directory with review tile files (*.gpkg)')
+
     def run(self):
         """Run method that loads and starts the plugin"""
         if not self.plugin_is_active:
@@ -966,7 +1081,7 @@ class QGISFGIPlugin(QObject):
             )
             self.plugin_is_active = True
             self.canvas = self.iface.mapCanvas()
-
+            self.config_combo_mode()
             self.open_google_satellite()
             self.open_bing_satellite()
 
