@@ -505,6 +505,7 @@ class QGISFGIPlugin(QObject):
     def create_and_populate_tiles_review_layer(self, files):
         # Create an empty memory layer with the required fields
         fields = QgsFields()
+        fields.append(QgsField('fid', QVariant.Int))
         fields.append(QgsField("name_file", QVariant.String))
         fields.append(QgsField("path", QVariant.String))
         fields.append(QgsField("bing_start", QVariant.String))
@@ -534,9 +535,12 @@ class QGISFGIPlugin(QObject):
                 google_image_end_date = first_feature['google_image_end_date']
 
                 # Add a feature with these attributes to the memory layer
+                fid = int(os.path.basename(file_path).split('_')[0])
+
                 new_feature = QgsFeature()
                 new_feature.setFields(tiles_review.fields())
                 new_feature.setGeometry(QgsGeometry.fromRect(layer.extent()))
+                new_feature['fid'] = fid
                 new_feature['name_file'] = os.path.basename(file_path)
                 new_feature['path'] = file_path
                 new_feature['bing_start'] = bing_image_start_date
@@ -546,8 +550,8 @@ class QGISFGIPlugin(QObject):
 
                 provider.addFeature(new_feature)
 
-        work_dir = self.get_config('workingDirectory')
-        output_file_path = f"{work_dir}/tiles_review_{datetime.now().strftime('%Y-%m-%d')}.gpkg"
+        work_dir = os.path.expanduser("~")
+        output_file_path = f"{work_dir}/tiles_review_{datetime.now().strftime('%Y-%m-%d').replace('-', '_')}.gpkg"
 
         writer = QgsVectorFileWriter.writeAsVectorFormat(
             tiles_review,
