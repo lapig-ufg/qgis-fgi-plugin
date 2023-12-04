@@ -178,7 +178,7 @@
          <cursorShape>ArrowCursor</cursorShape>
         </property>
         <property name="currentIndex">
-         <number>0</number>
+         <number>2</number>
         </property>
         <widget class="QWidget" name="tabConfig">
          <property name="minimumSize">
@@ -320,6 +320,16 @@
            </rect>
           </property>
           <layout class="QHBoxLayout" name="fieldInterpreter">
+           <item>
+            <widget class="QLabel" name="modeLabel">
+             <property name="text">
+              <string>Mode</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboMode"/>
+           </item>
            <item>
             <widget class="QLabel" name="label_4">
              <property name="text">
@@ -932,6 +942,15 @@ border-radius: 3px</string>
                  <bold>true</bold>
                 </font>
                </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="focusPolicy">
+                <enum>Qt::StrongFocus</enum>
+               </property>
+               <property name="acceptDrops">
+                <bool>false</bool>
+               </property>
                <property name="styleSheet">
                 <string notr="true">color: blue;</string>
                </property>
@@ -1064,7 +1083,7 @@ border-radius: 3px</string>
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="showImportsGroup"/>
   <buttongroup name="loadConfigGroup"/>
+  <buttongroup name="showImportsGroup"/>
  </buttongroups>
 </ui>
