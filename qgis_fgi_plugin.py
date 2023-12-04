@@ -69,7 +69,7 @@ from .resources import *
 from .sources import connections
 from .src.inspections import InspectionController
 from .src.models.config_db import init_db, reset_config, set_config, get_config
-
+from .src.ui.date_time_edit import NoScrollOrArrowKeyFilter
 
 class QGISFGIPlugin(QObject):
     """QGIS Plugin Implementation."""
@@ -502,6 +502,12 @@ class QGISFGIPlugin(QObject):
                 self.tiles = [f.attributes() for f in layer.getFeatures()]
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
+    def find_first_valid_date(self, layer, date_field):
+        for feature in layer.getFeatures():
+            date_value = feature[date_field]
+            if date_value and date_value != '2000-01-01':
+                return date_value
+        return '2000-01-01'
     def create_and_populate_tiles_review_layer(self, files):
         # Create an empty memory layer with the required fields
         fields = QgsFields()
@@ -525,30 +531,26 @@ class QGISFGIPlugin(QObject):
             if not layer.isValid():
                 print(f"Layer failed to load: {file_path}")
                 continue
+            bing_image_start_date = self.find_first_valid_date(layer, 'bing_image_start_date')
+            bing_image_end_date = self.find_first_valid_date(layer, 'bing_image_end_date')
+            google_image_start_date = self.find_first_valid_date(layer, 'google_image_start_date')
+            google_image_end_date = self.find_first_valid_date(layer, 'google_image_end_date')
 
-            # Extract required data from the first feature
-            first_feature = next(layer.getFeatures(), None)
-            if first_feature:
-                bing_image_start_date = first_feature['bing_image_start_date']
-                bing_image_end_date = first_feature['bing_image_end_date']
-                google_image_start_date = first_feature['google_image_start_date']
-                google_image_end_date = first_feature['google_image_end_date']
+            # Add a feature with these attributes to the memory layer
+            fid = int(os.path.basename(file_path).split('_')[0])
 
-                # Add a feature with these attributes to the memory layer
-                fid = int(os.path.basename(file_path).split('_')[0])
+            new_feature = QgsFeature()
+            new_feature.setFields(tiles_review.fields())
+            new_feature.setGeometry(QgsGeometry.fromRect(layer.extent()))
+            new_feature['fid'] = fid
+            new_feature['name_file'] = os.path.basename(file_path)
+            new_feature['path'] = file_path
+            new_feature['bing_start'] = bing_image_start_date
+            new_feature['bing_end'] = bing_image_end_date
+            new_feature['google_start'] = google_image_start_date
+            new_feature['google_end'] = google_image_end_date
 
-                new_feature = QgsFeature()
-                new_feature.setFields(tiles_review.fields())
-                new_feature.setGeometry(QgsGeometry.fromRect(layer.extent()))
-                new_feature['fid'] = fid
-                new_feature['name_file'] = os.path.basename(file_path)
-                new_feature['path'] = file_path
-                new_feature['bing_start'] = bing_image_start_date
-                new_feature['bing_end'] = bing_image_end_date
-                new_feature['google_start'] = google_image_start_date
-                new_feature['google_end'] = google_image_end_date
-
-                provider.addFeature(new_feature)
+            provider.addFeature(new_feature)
 
         work_dir = os.path.expanduser("~")
         output_file_path = f"{work_dir}/tiles_review_{datetime.now().strftime('%Y-%m-%d').replace('-', '_')}.gpkg"
@@ -1044,8 +1046,10 @@ class QGISFGIPlugin(QObject):
 
         if selected_mode == 'INSPECT':
             self.dock_widget.labelFile.setText('Tiles file (*.gpkg)')
+            self.dock_widget.btnSkip.setText('Skip')
         else:
             self.dock_widget.labelFile.setText('Select the directory with review tile files (*.gpkg)')
+            self.dock_widget.btnSkip.setText('Next')
 
     def run(self):
         """Run method that loads and starts the plugin"""
@@ -1098,6 +1102,8 @@ class QGISFGIPlugin(QObject):
             self.dock_widget.btnShowNo.setChecked(True)
             self.dock_widget.localConfig.installEventFilter(self)
 
+            self.dock_widget.imageDate.installEventFilter(NoScrollOrArrowKeyFilter())
+
             file = self.get_config('filePath')
 
             self.campaigns_config = self.get_config('inspectionConfig')
@@ -1110,6 +1116,13 @@ class QGISFGIPlugin(QObject):
                 self.continue_inspecting()
             else:
                 self.reset_content()
+
+            selected_mode = self.get_config('mode')
+
+            if selected_mode == 'INSPECT':
+                self.dock_widget.btnSkip.setText('Skip')
+            else:
+                self.dock_widget.btnSkip.setText('Next')
 
             self.iface.actionZoomToSelected().trigger()
             self.dock_widget.closingPlugin.connect(self.onClosePlugin)
@@ -1126,4 +1139,6 @@ class QGISFGIPlugin(QObject):
 
             # show the dock_widget
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock_widget)
+
+
             self.dock_widget.show()

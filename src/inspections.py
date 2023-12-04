@@ -42,6 +42,7 @@ class InspectionController:
         self.selected_class_object = None
         self.livestock_layer = None
         self.inspection_start_datetime = None
+        self.tile = None
         self.tile_geom = None
         self.bing_thumb_url = None
         self.inspecting = False
@@ -129,8 +130,8 @@ class InspectionController:
             if self.parent.get_config('imageSource') == 'BING':
                 rules.append(
                     [
-                        type['class'],
-                        f""""bing_class" = '{type['class']}'""",
+                        type['class'].upper(),
+                        f""""bing_class" = '{type['class'].upper()}'""",
                         QColor(
                             int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3])
                         ),
@@ -139,8 +140,8 @@ class InspectionController:
             else:
                 rules.append(
                     [
-                        type['class'],
-                        f""""google_class" = '{type['class']}'""",
+                        type['class'].upper(),
+                        f""""google_class" = '{type['class'].upper()}'""",
                         QColor(
                             int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3])
                         ),
@@ -570,8 +571,11 @@ class InspectionController:
 
         period = date_end - date_start
 
-        self.parent.dock_widget.bingStartDate.setDateTime(date_start)
-        self.parent.dock_widget.bingEndDate.setDateTime(date_end)
+        qdate_start = QtCore.QDateTime(date_start.year, date_start.month, date_start.day, date_start.hour, date_start.minute, date_start.second)
+        qdate_end = QtCore.QDateTime(date_start.year, date_start.month, date_start.day, date_start.hour, date_start.minute, date_start.second)
+
+        self.parent.dock_widget.bingStartDate.setDateTime(qdate_start)
+        self.parent.dock_widget.bingEndDate.setDateTime(qdate_end)
 
         self.parent.dock_widget.bingPeriod.setText(str(period.days))
 
@@ -584,11 +588,10 @@ class InspectionController:
                 level=Qgis.Critical,
                 duration=4,
             )
-
         dtime = datetime.datetime.strptime(date, '%Y-%m-%d')
-        self.parent.dock_widget.imageDate.setDateTime(dtime)
+        qdate = QtCore.QDateTime(dtime.year, dtime.month, dtime.day, dtime.hour, dtime.minute, dtime.second)
+        self.parent.dock_widget.imageDate.setDateTime(qdate)
 
-    # @profile
     def create_grid_pixels(self, tile):
         out = None
 
@@ -598,6 +601,7 @@ class InspectionController:
             if path.exists(p):
                 remove(p)
 
+        self.tile = tile;
         self.parent.update_progress(50)
         self.parent.current_pixels_layer = None
         self.inspection_start_datetime = datetime.datetime.now()
@@ -633,6 +637,7 @@ class InspectionController:
 
         grid_path = None
         layer_name = None
+
         if selected_mode == 'INSPECT':
 
             cell_size = self.parent.campaigns_config.get('cell_size', 10)
@@ -676,7 +681,6 @@ class InspectionController:
 
             self.parent.update_progress(80)
             self.parent.current_pixels_layer = grid
-            print('current_pixels_layer', grid)
 
             QgsProject().instance().addMapLayer(grid)
             self.parent.iface.setActiveLayer(grid)
@@ -744,7 +748,6 @@ class InspectionController:
                 duration=5,
             )
 
-    # @profile
     def clear_list(self, list_widget):
         list_widget.clear()
         for i in range(list_widget.count()):
@@ -777,7 +780,6 @@ class InspectionController:
                 self.get_widget_object('classes').addItem(item)
                 self.get_widget_object('classes').setItemWidget(item, button)
 
-    # @profile
     def init_inspection_tile(self, no_image_date=False):
         """Load all class of type inspection"""
 
@@ -798,7 +800,6 @@ class InspectionController:
 
         self.get_widget_object('btnClearSelection').setVisible(True)
 
-    # @profile
     def clear_container_classes(self, finished=False):
 
         if self.parent.dock_widget:
@@ -842,18 +843,6 @@ class InspectionController:
         # Enter editing mode
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
         self.parent.tiles_layer.startEditing()
-        # request = QgsFeatureRequest()
-        # request.setFilterFids([tile[0]])
-        # all_features = self.parent.tiles_layer.getFeatures(request)
-        # missing_image_date_idx = self.parent.tiles_layer.fields().indexOf(
-        #     'missing_image_date'
-        # )
-        # for feature in all_features:
-        #     self.parent.tiles_layer.changeAttributeValue(
-        #         feature.id(), missing_image_date_idx, 1
-        #     )
-        #
-        # self.parent.tiles_layer.commitChanges()
 
         missing_image_date_idx = self.parent.tiles_layer.fields().indexOf('missing_image_date')
 
@@ -908,14 +897,6 @@ class InspectionController:
             layer = self.parent.current_pixels_layer
             QApplication.instance().setOverrideCursor(Qt.BusyCursor)
             layer.startEditing()
-            # all_features = layer.getFeatures()
-            # same_image_bing_google_idx = layer.fields().indexOf(
-            #     'same_image_bing_google'
-            # )
-            # for feature in all_features:
-            #     layer.changeAttributeValue(
-            #         feature.id(), same_image_bing_google_idx, value
-            #     )
 
             same_image_bing_google_idx = layer.fields().indexOf('same_image_bing_google')
             changes = {feature.id(): {same_image_bing_google_idx: value} for feature in layer.getFeatures()}
@@ -953,16 +934,7 @@ class InspectionController:
         image_date = self.parent.dock_widget.imageDate.date().toString(
             'yyyy-MM-dd'
         )
-        # for feature in all_features:
-        #     layer.changeAttributeValue(
-        #         feature.id(), google_class_idx, feature['bing_class']
-        #     )
-        #     layer.changeAttributeValue(
-        #         feature.id(), google_image_start_date_idx, image_date
-        #     )
-        #     layer.changeAttributeValue(
-        #         feature.id(), google_image_end_date_idx, image_date
-        #     )
+
         # Create an attribute map for batch updates
         attribute_map = {}
 
@@ -1001,7 +973,7 @@ class InspectionController:
         with Writer(self, layer, metadata) as w:
             return w.gpkg()
 
-    # @profile
+
     def finish_inspection(self):
         self.parent.iface.messageBar().pushMessage(
             '', 'Inspection FINISHED!', level=Qgis.Info, duration=15
@@ -1130,11 +1102,7 @@ class InspectionController:
         ).setItemVisibilityChecked(False)
         self.parent.dock_widget.tabWidget.setCurrentIndex(2)
         self.parent.dock_widget.tabWidget.setTabEnabled(2, True)
-        # if isinstance(self.parent.current_pixels_layer, QgsVectorLayer):
-        #     self.parent.current_pixels_layer.removeSelection()
-        #     self.parent.current_pixels_layer.triggerRepaint()
 
-    # @profile
     def on_change_tab(self, tab):
         selected_mode = self.parent.dock_widget.comboMode.currentText()
 
@@ -1165,6 +1133,7 @@ class InspectionController:
             self.parent.iface.mapCanvas().setSelectionColor(
                 QColor(255, 255, 255, 0)
             )
+            self.set_date_google(self.tile[5])
             # self.load_thumbnail_bing(self.bing_thumb_url)
             self.set_feature_color()
             if selected_mode == 'REVIEW':
