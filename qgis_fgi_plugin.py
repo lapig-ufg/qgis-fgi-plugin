@@ -995,10 +995,10 @@ class QGISFGIPlugin(QObject):
 
     def update_progress(self, value):
         if self.progress_bar:
-            self.progress_bar.setValue(value)
+            self.progress_bar.setValue(int(value))
         else:
             self.start_processing()
-            self.progress_bar.setValue(value)
+            self.progress_bar.setValue(int(value))
 
     def finish_progress(self):
         if self.progress_message_bar:

@@ -2,6 +2,11 @@
 
 All notable changes to the "QGIS Fast Grid Inspection (FGI)" project will be documented in this file.
 
+## [4.0.2] - 2024-07-27
+
+### Fixed
+- Add mode review tiles.
+
 ## [4.0.0] - 2023-12-04
 
 ### Added

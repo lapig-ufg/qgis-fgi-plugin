@@ -588,6 +588,7 @@ class InspectionController:
                 level=Qgis.Critical,
                 duration=4,
             )
+        print('set_date_google', date)
         dtime = datetime.datetime.strptime(date, '%Y-%m-%d')
         qdate = QtCore.QDateTime(dtime.year, dtime.month, dtime.day, dtime.hour, dtime.minute, dtime.second)
         self.parent.dock_widget.imageDate.setDateTime(qdate)
@@ -1133,10 +1134,10 @@ class InspectionController:
             self.parent.iface.mapCanvas().setSelectionColor(
                 QColor(255, 255, 255, 0)
             )
-            self.set_date_google(self.tile[5])
             # self.load_thumbnail_bing(self.bing_thumb_url)
             self.set_feature_color()
             if selected_mode == 'REVIEW':
+                self.set_date_google(self.tile[5])
                 self.parent.load_classes()
 
             self.inspecting = True
