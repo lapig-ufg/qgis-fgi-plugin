@@ -164,3 +164,4 @@ config.json
 *.gpkg-wal
 *.gpkg-shm
 *.db
+*.md

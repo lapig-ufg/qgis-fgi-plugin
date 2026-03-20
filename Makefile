@@ -22,18 +22,14 @@
 # Edit the following to match your sources lists
 #################################################
 
-
-#Add iso code for any locales you want to support here (space separated)
+# Add iso code for any locales you want to support here (space separated)
 # default is no locales
 # LOCALES = af
 LOCALES =
 
-# If locales are enabled, set the name of the lrelease binary on your system. If
-# you have trouble compiling the translations, you may have to specify the full path to
-# lrelease
+# If locales are enabled, set the name of the lrelease binary on your system.
 #LRELEASE = lrelease
 #LRELEASE = lrelease-qt4
-
 
 # translation
 SOURCES = \
@@ -42,49 +38,58 @@ SOURCES = \
 
 PLUGINNAME = global_inspection
 
+# Root-level Python files
 PY_FILES = \
 	__init__.py \
-	qgis_fgi_plugin.py qgis_fgi_plugin_dockwidget.py
+	qgis_fgi_plugin.py \
+	qgis_fgi_plugin_dockwidget.py \
+	resources.py
 
 UI_FILES = qgis_fgi_plugin_dockwidget_base.ui
 
 EXTRAS = metadata.txt icon.png
 
-EXTRA_DIRS =
+# Subdirectories required by the plugin at runtime
+EXTRA_DIRS = src sources config datasource img
 
 COMPILED_RESOURCE_FILES = resources.py
 
 PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
 
 # QGISDIR points to the location where your plugin should be installed.
-# This varies by platform, relative to your HOME directory:
-#	* Linux:
-#	  .local/share/QGIS/QGIS3/profiles/default/python/plugins/
-#	* Mac OS X:
-#	  Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
-#	* Windows:
-#	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
-
-QGISDIR=~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/
+# This is a path relative to HOME (no leading ~ or /).
+#   Linux:   .local/share/QGIS/QGIS3/profiles/default/python/plugins
+#   Mac:     Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
+#   Windows: AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins
+QGISDIR = .local/share/QGIS/QGIS3/profiles/default/python/plugins
 
 #################################################
 # Normally you would not need to edit below here
 #################################################
 
+PLUGINDIR = $(HOME)/$(QGISDIR)/$(PLUGINNAME)
+
 HELP = help/build/html
 
-PLUGIN_UPLOAD = $(c)/plugin_upload.py
+PLUGIN_UPLOAD = $(CURDIR)/plugin_upload.py
 
 RESOURCE_SRC=$(shell grep '^ *<file' resources.qrc | sed 's@</file>@@g;s/.*>//g' | tr '\n' ' ')
 
-.PHONY: default
+.PHONY: default compile test deploy dclean derase zip package upload \
+        transup transcompile transclean clean doc pylint pep8 help
+
 default:
-	@echo While you can use make to build and deploy your plugin, pb_tool
-	@echo is a much better solution.
-	@echo A Python script, pb_tool provides platform independent management of
-	@echo your plugins and runs anywhere.
-	@echo You can install pb_tool using: pip install pb_tool
-	@echo See https://g-sherman.github.io/plugin_build_tool/ for info. 
+	@echo "Available targets:"
+	@echo "  make compile       - Compile Qt resources (pyrcc5)"
+	@echo "  make deploy        - Deploy plugin to local QGIS plugins directory"
+	@echo "  make test          - Run test suite with nosetests"
+	@echo "  make zip           - Deploy + create zip bundle"
+	@echo "  make package       - Create zip via git archive (VERSION=tag required)"
+	@echo "  make clean         - Remove compiled resources"
+	@echo "  make pylint        - Run pylint"
+	@echo "  make pep8          - Run PEP8 checks"
+	@echo "  make doc           - Build Sphinx documentation"
+	@echo "  make derase        - Remove deployed plugin"
 
 compile: $(COMPILED_RESOURCE_FILES)
 
@@ -99,7 +104,6 @@ test: compile transcompile
 	@echo "----------------------"
 	@echo "Regression Test Suite"
 	@echo "----------------------"
-
 	@# Preceding dash means that make will continue in case of errors
 	@-export PYTHONPATH=`pwd`:$(PYTHONPATH); \
 		export QGIS_DEBUG=0; \
@@ -107,57 +111,63 @@ test: compile transcompile
 		nosetests -v --with-id --with-coverage --cover-package=. \
 		3>&1 1>&2 2>&3 3>&- || true
 	@echo "----------------------"
-	@echo "If you get a 'no module named qgis.core error, try sourcing"
+	@echo "If you get a 'no module named qgis.core' error, try sourcing"
 	@echo "the helper script we have provided first then run make test."
-	@echo "e.g. source run-env-linux.sh <path to qgis install>; make test"
+	@echo "e.g. source scripts/run-env-linux.sh <path to qgis install>; make test"
 	@echo "----------------------"
 
-deploy: compile doc transcompile
+deploy: compile transcompile
 	@echo
-	@echo "------------------------------------------"
-	@echo "Deploying plugin to your .qgis2 directory."
-	@echo "------------------------------------------"
-	# The deploy  target only works on unix like operating system where
-	# the Python plugin directory is located at:
-	# $HOME/$(QGISDIR)/python/plugins
-	mkdir -p $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(PY_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(UI_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(COMPILED_RESOURCE_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(EXTRAS) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr i18n $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr $(HELP) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)/help
-	# Copy extra directories if any
-	(foreach EXTRA_DIR,(EXTRA_DIRS), cp -R (EXTRA_DIR) (HOME)/(QGISDIR)/python/plugins/(PLUGINNAME)/;)
+	@echo "----------------------------------------------"
+	@echo "Deploying plugin to $(PLUGINDIR)"
+	@echo "----------------------------------------------"
+	mkdir -p $(PLUGINDIR)
+	cp -vf $(PY_FILES) $(PLUGINDIR)/
+	cp -vf $(UI_FILES) $(PLUGINDIR)/
+	cp -vf $(EXTRAS) $(PLUGINDIR)/
+	@# Copy subdirectories
+	@for DIR in $(EXTRA_DIRS); do \
+		echo "Copying $$DIR/ ..."; \
+		cp -rf $$DIR $(PLUGINDIR)/; \
+	done
+	@# Copy i18n if it exists and has content
+	@if [ -d i18n ] && [ "$$(ls -A i18n 2>/dev/null)" ]; then \
+		cp -rf i18n $(PLUGINDIR)/; \
+	fi
+	@# Copy help if built
+	@if [ -d "$(HELP)" ]; then \
+		mkdir -p $(PLUGINDIR)/help; \
+		cp -rf $(HELP)/* $(PLUGINDIR)/help/; \
+	fi
+	@echo "----------------------------------------------"
+	@echo "Plugin deployed successfully."
+	@echo "----------------------------------------------"
 
-
-# The dclean target removes compiled python files from plugin directory
-# also deletes any .git entry
+# Remove compiled python files from deployed plugin directory
 dclean:
 	@echo
 	@echo "-----------------------------------"
 	@echo "Removing any compiled python files."
 	@echo "-----------------------------------"
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname "*.pyc" -delete
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname ".git" -prune -exec rm -Rf {} \;
-
+	find $(PLUGINDIR) -iname "*.pyc" -delete
+	find $(PLUGINDIR) -iname "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	find $(PLUGINDIR) -iname ".git" -prune -exec rm -Rf {} \;
 
 derase:
 	@echo
 	@echo "-------------------------"
 	@echo "Removing deployed plugin."
 	@echo "-------------------------"
-	rm -Rf $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
+	rm -Rf $(PLUGINDIR)
 
 zip: deploy dclean
 	@echo
 	@echo "---------------------------"
 	@echo "Creating plugin zip bundle."
 	@echo "---------------------------"
-	# The zip target deploys the plugin and creates a zip file with the deployed
-	# content. You can then upload the zip file on http://plugins.qgis.org
 	rm -f $(PLUGINNAME).zip
-	cd $(HOME)/$(QGISDIR)/python/plugins; zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME)
+	cd $(HOME)/$(QGISDIR) && zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME)
+	@echo "Created: $(PLUGINNAME).zip"
 
 package: compile
 	# Create a zip package of the plugin named $(PLUGINNAME).zip.
@@ -171,7 +181,7 @@ package: compile
 	@echo "------------------------------------"
 	rm -f $(PLUGINNAME).zip
 	git archive --prefix=$(PLUGINNAME)/ -o $(PLUGINNAME).zip $(VERSION)
-	echo "Created package: $(PLUGINNAME).zip"
+	@echo "Created package: $(PLUGINNAME).zip"
 
 upload: zip
 	@echo
@@ -208,7 +218,7 @@ clean:
 	@echo "------------------------------------"
 	@echo "Removing uic and rcc generated files"
 	@echo "------------------------------------"
-	rm $(COMPILED_UI_FILES) $(COMPILED_RESOURCE_FILES)
+	rm -f $(COMPILED_RESOURCE_FILES)
 
 doc:
 	@echo
@@ -227,12 +237,10 @@ pylint:
 	@echo "----------------------"
 	@echo "If you get a 'no module named qgis.core' error, try sourcing"
 	@echo "the helper script we have provided first then run make pylint."
-	@echo "e.g. source run-env-linux.sh <path to qgis install>; make pylint"
+	@echo "e.g. source scripts/run-env-linux.sh <path to qgis install>; make pylint"
 	@echo "----------------------"
 
-
-# Run pep8 style checking
-#http://pypi.python.org/pypi/pep8
+# Run pep8/pycodestyle checking
 pep8:
 	@echo
 	@echo "-----------"
