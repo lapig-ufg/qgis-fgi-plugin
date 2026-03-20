@@ -34,13 +34,14 @@ def init_config(default_tiles_path=None, results_path=None, empty=False):
         'currentTileIndex': 0,
         'filePath': file_path,
         'workingDirectory': working_directory,
-        'imageSource': 'BING',
+        'imageSource': 'ESRI',
         'showImportsButtons': True,
         'mode': 'INSPECT',
         'loadConfigFrom': 'local',
         'configURL': '',
+        'gridCrs': 'EPSG:3857',
+        'esriMaxZoom': 19,
         'inspectionConfig': json.dumps({
-            'bing_maps_key': 'UomkpKbLwbM1R9IfxTll~NFnQkcDTeQaWvbc96cVmQw~AjK0oEujZwZrnsBdSmg5cM47Lu25vSf1Hhuqxvc_IzTvo-dC4AzGh8wVXCFLgGO4',
             'cell_size': 10,
             'classes': [
                 {

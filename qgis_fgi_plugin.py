@@ -32,6 +32,7 @@ from functools import partial
 import requests as req
 from qgis.core import (
     Qgis,
+    QgsCoordinateReferenceSystem,
     QgsFillSymbol,
     QgsProject,
     QgsRasterLayer,
@@ -44,6 +45,7 @@ from qgis.core import (
     QgsVectorDataProvider,
     QgsVectorFileWriter
 )
+from qgis.gui import QgsProjectionSelectionWidget
 from qgis.PyQt.QtCore import QCoreApplication, QSettings, Qt, QTranslator, QEvent, QObject, QVariant
 from qgis.PyQt.QtGui import QIcon, QPixmap
 from qgis.PyQt.QtWidgets import (
@@ -70,6 +72,8 @@ from .sources import connections
 from .src.inspections import InspectionController
 from .src.models.config_db import init_db, reset_config, set_config, get_config
 from .src.ui.date_time_edit import NoScrollOrArrowKeyFilter
+
+
 
 class QGISFGIPlugin(QObject):
     """QGIS Plugin Implementation."""
@@ -122,12 +126,12 @@ class QGISFGIPlugin(QObject):
             self.tiles = None
             self.type_inspection = None
             self.current_tile_index = 0
-            self.selected_class_bing = None
+            self.selected_class_esri = None
             self.selected_class_google = None
             self.current_pixels_layer = None
             self.inspection_controller = None
             self.campaigns_config = None
-            self.layer_bing = None
+            self.layer_esri = None
             self.layer_google = None
             self.config = init_db()
             self.scroll = None
@@ -373,14 +377,15 @@ class QGISFGIPlugin(QObject):
         """Return the list of layer IDs."""
         return self.layers_plugin
 
-    def open_bing_satellite(self):
+    def open_esri_satellite(self):
 
-        url = 'http://ecn.t3.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1'
+        url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        max_zoom = self.get_config('esriMaxZoom') or 19
 
-        qgis_tms_uri = 'type=xyz&zmin={0}&zmax={1}&url={2}'.format(0, 19, url)
+        qgis_tms_uri = 'type=xyz&zmin={0}&zmax={1}&url={2}'.format(0, max_zoom, url)
 
-        layer = QgsRasterLayer(qgis_tms_uri, 'Bing', 'wms')
-        self.layer_bing = layer
+        layer = QgsRasterLayer(qgis_tms_uri, 'Esri Satellite', 'wms')
+        self.layer_esri = layer
         self.add_layer(layer.id())
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
@@ -464,7 +469,7 @@ class QGISFGIPlugin(QObject):
         self.update_progress(30)
         try:
             tile = self.tiles[self.current_tile_index]
-            self.dock_widget.tileInfoBing.setText(
+            self.dock_widget.tileInfoEsri.setText(
                 f'Tile {self.current_tile_index + 1} of {len(self.tiles)}'
             )
             self.dock_widget.tileInfoGoogle.setText(
@@ -514,12 +519,13 @@ class QGISFGIPlugin(QObject):
         fields.append(QgsField('fid', QVariant.Int))
         fields.append(QgsField("name_file", QVariant.String))
         fields.append(QgsField("path", QVariant.String))
-        fields.append(QgsField("bing_start", QVariant.String))
-        fields.append(QgsField("bing_end", QVariant.String))
+        fields.append(QgsField("esri_start", QVariant.String))
+        fields.append(QgsField("esri_end", QVariant.String))
         fields.append(QgsField("google_start", QVariant.String))
         fields.append(QgsField("google_end", QVariant.String))
 
-        tiles_review = QgsVectorLayer("Polygon?crs=EPSG:3857", "tiles_review", "memory")
+        grid_crs = self.get_config('gridCrs') or 'EPSG:3857'
+        tiles_review = QgsVectorLayer(f"Polygon?crs={grid_crs}", "tiles_review", "memory")
 
         provider = tiles_review.dataProvider()
         provider.addAttributes(fields)
@@ -531,8 +537,8 @@ class QGISFGIPlugin(QObject):
             if not layer.isValid():
                 print(f"Layer failed to load: {file_path}")
                 continue
-            bing_image_start_date = self.find_first_valid_date(layer, 'bing_image_start_date')
-            bing_image_end_date = self.find_first_valid_date(layer, 'bing_image_end_date')
+            esri_image_start_date = self.find_first_valid_date(layer, 'esri_image_start_date')
+            esri_image_end_date = self.find_first_valid_date(layer, 'esri_image_end_date')
             google_image_start_date = self.find_first_valid_date(layer, 'google_image_start_date')
             google_image_end_date = self.find_first_valid_date(layer, 'google_image_end_date')
 
@@ -545,8 +551,8 @@ class QGISFGIPlugin(QObject):
             new_feature['fid'] = fid
             new_feature['name_file'] = os.path.basename(file_path)
             new_feature['path'] = file_path
-            new_feature['bing_start'] = bing_image_start_date
-            new_feature['bing_end'] = bing_image_end_date
+            new_feature['esri_start'] = esri_image_start_date
+            new_feature['esri_end'] = esri_image_end_date
             new_feature['google_start'] = google_image_start_date
             new_feature['google_end'] = google_image_end_date
 
@@ -688,13 +694,13 @@ class QGISFGIPlugin(QObject):
                     no_image_date=True
                 )
         else:
-            if self.get_config('imageSource') == 'BING':
-                self.dock_widget.labelClassBing.setVisible(True)
-                self.dock_widget.selectedClassBing.setVisible(True)
+            if self.get_config('imageSource') == 'ESRI':
+                self.dock_widget.labelClassEsri.setVisible(True)
+                self.dock_widget.selectedClassEsri.setVisible(True)
             else:
                 self.dock_widget.btnNext.setVisible(True)
                 if self.dock_widget.btnShowYes.isChecked():
-                    self.dock_widget.importBingClassification.setVisible(True)
+                    self.dock_widget.importEsriClassification.setVisible(True)
                 self.dock_widget.labelClassGoogle.setVisible(True)
                 self.dock_widget.selectedClassGoogle.setVisible(True)
 
@@ -707,6 +713,11 @@ class QGISFGIPlugin(QObject):
         if interpreter_name != '':
             QApplication.instance().setOverrideCursor(Qt.BusyCursor)
 
+            grid_crs = self.get_config('gridCrs') or 'EPSG:3857'
+            QgsProject.instance().setCrs(
+                QgsCoordinateReferenceSystem(grid_crs)
+            )
+
             self.load_type_inspections()
             self.config_tiles()
             self.set_config(
@@ -714,7 +725,7 @@ class QGISFGIPlugin(QObject):
             )
             self.dock_widget.btnInitInspections.setVisible(False)
 
-            if self.get_config('imageSource') == 'BING':
+            if self.get_config('imageSource') == 'ESRI':
                 self.dock_widget.tabWidget.setTabEnabled(1, True)
                 self.dock_widget.tabWidget.setCurrentIndex(1)
 
@@ -747,6 +758,10 @@ class QGISFGIPlugin(QObject):
         self.dock_widget.btnShowYes.setEnabled(enable)
         self.dock_widget.btnShowNo.setEnabled(enable)
         self.dock_widget.comboMode.setEnabled(enable)
+        if hasattr(self, 'crs_widget'):
+            self.crs_widget.setEnabled(enable)
+        if hasattr(self, 'zoom_spinbox'):
+            self.zoom_spinbox.setEnabled(enable)
 
     def on_config_buttons_toggled(self, button):
         actions = {
@@ -816,7 +831,7 @@ class QGISFGIPlugin(QObject):
         self.dock_widget.tabWidget.setTabEnabled(1, True)
         self.dock_widget.tabWidget.setTabEnabled(2, True)
 
-        self.set_config(key='imageSource', value='BING')
+        self.set_config(key='imageSource', value='ESRI')
         self.update_progress(30)
         self.inspection_controller.on_change_tab(1)
         self.show_config_url(False)
@@ -840,14 +855,14 @@ class QGISFGIPlugin(QObject):
         connections = [
             (self.dock_widget.btnFile.clicked, self.open_tiles_file),
             (self.dock_widget.btnWorkingDirectory.clicked, self.get_dir_path),
-            (self.dock_widget.btnClearSelectionBing.clicked, self.inspection_controller.remove_selection),
+            (self.dock_widget.btnClearSelectionEsri.clicked, self.inspection_controller.remove_selection),
             (self.dock_widget.btnClearSelectionGoogle.clicked, self.inspection_controller.remove_selection),
             (self.dock_widget.btnInitInspections.clicked, self.init_inspections),
             (self.dock_widget.btnLoadClasses.clicked, self.load_classes),
-            (self.dock_widget.btnFinishBing.clicked, self.inspection_controller.start_inspection_google),
+            (self.dock_widget.btnFinishEsri.clicked, self.inspection_controller.start_inspection_google),
             (self.dock_widget.tabWidget.currentChanged, self.inspection_controller.on_change_tab),
             (self.dock_widget.sameImage.clicked, self.inspection_controller.set_same_image),
-            (self.dock_widget.importBingClassification.clicked, self.inspection_controller.import_classes_bing),
+            (self.dock_widget.importEsriClassification.clicked, self.inspection_controller.import_classes_esri),
             (self.dock_widget.btnConfigLocal.clicked, partial(self.on_config_buttons_toggled, 'Local')),
             (self.dock_widget.btnConfigURL.clicked, partial(self.on_config_buttons_toggled, 'URL')),
             (self.dock_widget.btnShowYes.clicked, partial(self.on_config_buttons_toggled, 'Yes')),
@@ -873,24 +888,24 @@ class QGISFGIPlugin(QObject):
 
     def reset_screen(self):
         self.dock_widget.btnInitInspections.setVisible(False)
-        self.dock_widget.btnClearSelectionBing.setVisible(False)
+        self.dock_widget.btnClearSelectionEsri.setVisible(False)
         self.dock_widget.btnClearSelectionGoogle.setVisible(False)
         self.dock_widget.btnLoadClasses.setVisible(False)
         self.dock_widget.tabWidget.setTabEnabled(1, False)
         self.dock_widget.tabWidget.setTabEnabled(2, False)
         self.dock_widget.tabWidget.setTabEnabled(3, False)
-        self.dock_widget.labelClassBing.setVisible(False)
+        self.dock_widget.labelClassEsri.setVisible(False)
         self.dock_widget.labelClassGoogle.setVisible(False)
-        self.dock_widget.selectedClassBing.setVisible(False)
+        self.dock_widget.selectedClassEsri.setVisible(False)
         self.dock_widget.selectedClassGoogle.setVisible(False)
-        self.dock_widget.classesBing.setVisible(False)
+        self.dock_widget.classesEsri.setVisible(False)
         self.dock_widget.classesGoogle.setVisible(False)
-        self.dock_widget.importBingClassification.setVisible(False)
-        self.dock_widget.btnFinishBing.setVisible(False)
-        self.dock_widget.bingStartDate.setEnabled(False)
+        self.dock_widget.importEsriClassification.setVisible(False)
+        self.dock_widget.btnFinishEsri.setVisible(False)
+        self.dock_widget.esriStartDate.setEnabled(False)
         self.dock_widget.btnNext.setVisible(False)
         self.dock_widget.btnNext.setEnabled(False)
-        self.dock_widget.bingEndDate.setEnabled(False)
+        self.dock_widget.esriEndDate.setEnabled(False)
         self.dock_widget.imageDate.setMaximumDateTime(datetime.now())
         self.dock_widget.lblSearch.setVisible(False)
         self.dock_widget.spinSearch.setVisible(False)
@@ -946,7 +961,7 @@ class QGISFGIPlugin(QObject):
             self.reset_screen()
             self.reset_plugin_instance()
             self.open_google_satellite()
-            self.open_bing_satellite()
+            self.open_esri_satellite()
             self.enable_config_buttons(enable=True)
             self.show_local_config(show=True)
             self.iface.actionZoomToSelected().trigger()
@@ -1029,9 +1044,55 @@ class QGISFGIPlugin(QObject):
         self.reset_screen()
         self.reset_plugin_instance()
         self.open_google_satellite()
-        self.open_bing_satellite()
+        self.open_esri_satellite()
         self.enable_config_buttons(enable=True)
         self.show_local_config(show=True)
+
+    def setup_crs_widget(self):
+        config_tab = self.dock_widget.tabWidget.widget(0)
+
+        self.crs_label = QLabel('Grid CRS:', config_tab)
+        self.crs_label.setGeometry(10, 190, 391, 20)
+
+        self.crs_widget = QgsProjectionSelectionWidget(config_tab)
+        self.crs_widget.setGeometry(10, 210, 391, 30)
+
+        saved_crs = self.get_config('gridCrs') or 'EPSG:3857'
+        self.crs_widget.setCrs(QgsCoordinateReferenceSystem(saved_crs))
+        self.crs_widget.crsChanged.connect(self.on_crs_changed)
+
+        # Esri Max Zoom control
+        self.zoom_label = QLabel('Esri Max Zoom (1–19):', config_tab)
+        self.zoom_label.setGeometry(10, 245, 150, 20)
+
+        from qgis.PyQt.QtWidgets import QSpinBox
+        self.zoom_spinbox = QSpinBox(config_tab)
+        self.zoom_spinbox.setGeometry(165, 245, 60, 24)
+        self.zoom_spinbox.setMinimum(1)
+        self.zoom_spinbox.setMaximum(19)
+        saved_zoom = self.get_config('esriMaxZoom')
+        self.zoom_spinbox.setValue(saved_zoom if saved_zoom else 19)
+        self.zoom_spinbox.setToolTip(
+            'Maximum zoom level for Esri World Imagery tiles. '
+            'Lower values if tiles appear blurry at high zoom.'
+        )
+        self.zoom_spinbox.valueChanged.connect(self.on_esri_zoom_changed)
+
+        self.zoom_label.show()
+        self.zoom_spinbox.show()
+
+        # Reposition config container and init button to accommodate CRS + zoom widgets
+        self.dock_widget.gridLayoutWidget_3.setGeometry(10, 280, 391, 321)
+        self.dock_widget.btnInitInspections.setGeometry(160, 620, 111, 28)
+
+        self.crs_label.show()
+        self.crs_widget.show()
+
+    def on_crs_changed(self, crs):
+        self.set_config('gridCrs', crs.authid())
+
+    def on_esri_zoom_changed(self, value):
+        self.set_config('esriMaxZoom', value)
 
     def config_combo_mode(self):
         items = ["INSPECT", "REVIEW"]
@@ -1066,7 +1127,7 @@ class QGISFGIPlugin(QObject):
             self.dock_widget.btnPointDate.setIcon(
                 QIcon(os.path.dirname(__file__) + '/img/copy-point.png')
             )
-            self.dock_widget.btnClearSelectionBing.setIcon(
+            self.dock_widget.btnClearSelectionEsri.setIcon(
                 QIcon(os.path.dirname(__file__) + '/img/delete.png')
             )
             self.dock_widget.btnClearSelectionGoogle.setIcon(
@@ -1090,8 +1151,9 @@ class QGISFGIPlugin(QObject):
             self.plugin_is_active = True
             self.canvas = self.iface.mapCanvas()
             self.config_combo_mode()
+            self.setup_crs_widget()
             self.open_google_satellite()
-            self.open_bing_satellite()
+            self.open_esri_satellite()
 
             self.reset_screen()
 

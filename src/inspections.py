@@ -1,10 +1,12 @@
 import gc
 import datetime
+import json
 import time
 import unicodedata
 import urllib
 from os import path, remove
 import urllib.error
+import urllib.request
 
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QPushButton
@@ -16,6 +18,7 @@ from qgis.core import (
     QgsFeatureRequest,
     QgsField,
     QgsFillSymbol,
+    QgsGeometry,
     QgsProject,
     QgsRuleBasedRenderer,
     QgsVectorLayer,
@@ -23,8 +26,6 @@ from qgis.core import (
 from qgis.PyQt.QtCore import Qt, QVariant
 from qgis.PyQt.QtGui import QColor, QCursor, QPixmap
 from qgis.PyQt.QtWidgets import QApplication, QListWidgetItem, QMessageBox
-from requests.utils import requote_uri
-import xml.etree.ElementTree as ET
 from .export import Writer
 
 from .tools import ClipboardPointer, ToolPointer
@@ -44,8 +45,11 @@ class InspectionController:
         self.inspection_start_datetime = None
         self.tile = None
         self.tile_geom = None
-        self.bing_thumb_url = None
+        self.esri_thumb_url = None
         self.inspecting = False
+        self.esri_imagery_sensor = None
+        self.esri_imagery_source = None
+        self.esri_imagery_resolution = None
         self.parent.dock_widget.btnNext.clicked.connect(self.next_tile)
         self.parent.dock_widget.btnSearch.clicked.connect(self.search_tile)
         self.parent.dock_widget.btnPointDate.clicked.connect(self.get_point)
@@ -81,8 +85,8 @@ class InspectionController:
     def get_widget_object(self, widget):
         widget_object = None
 
-        if self.parent.get_config('imageSource') == 'BING':
-            widget_object = getattr(self.parent.dock_widget, f'{widget}Bing')
+        if self.parent.get_config('imageSource') == 'ESRI':
+            widget_object = getattr(self.parent.dock_widget, f'{widget}Esri')
         else:
             widget_object = getattr(self.parent.dock_widget, f'{widget}Google')
 
@@ -127,11 +131,11 @@ class InspectionController:
                 rgba = type['rgb'].split(',')
             else:
                 rgba = type['rgba'].split(',')
-            if self.parent.get_config('imageSource') == 'BING':
+            if self.parent.get_config('imageSource') == 'ESRI':
                 rules.append(
                     [
                         type['class'].upper(),
-                        f""""bing_class" = '{type['class'].upper()}'""",
+                        f""""esri_class" = '{type['class'].upper()}'""",
                         QColor(
                             int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3])
                         ),
@@ -148,11 +152,11 @@ class InspectionController:
                     ]
                 )
 
-        if self.parent.get_config('imageSource') == 'BING':
+        if self.parent.get_config('imageSource') == 'ESRI':
             rules.append(
                 [
                     'NOT DEFINED',
-                    f""""bing_class" is NULL""",
+                    f""""esri_class" is NULL""",
                     QColor(0, 0, 255, 0),
                 ]
             )
@@ -268,17 +272,17 @@ class InspectionController:
                 )
             )
 
-            bing_class_idx = self.parent.current_pixels_layer.fields().indexOf(
-                'bing_class'
+            esri_class_idx = self.parent.current_pixels_layer.fields().indexOf(
+                'esri_class'
             )
-            bing_image_start_date_idx = (
+            esri_image_start_date_idx = (
                 self.parent.current_pixels_layer.fields().indexOf(
-                    'bing_image_start_date'
+                    'esri_image_start_date'
                 )
             )
-            bing_image_end_date_idx = (
+            esri_image_end_date_idx = (
                 self.parent.current_pixels_layer.fields().indexOf(
-                    'bing_image_end_date'
+                    'esri_image_end_date'
                 )
             )
 
@@ -286,25 +290,25 @@ class InspectionController:
                 'yyyy-MM-dd'
             )
 
-            image_bind_start_date = (
-                self.parent.dock_widget.bingStartDate.date().toString(
+            image_esri_start_date = (
+                self.parent.dock_widget.esriStartDate.date().toString(
                     'yyyy-MM-dd'
                 )
             )
-            image_bind_end_date = (
-                self.parent.dock_widget.bingEndDate.date().toString(
+            image_esri_end_date = (
+                self.parent.dock_widget.esriEndDate.date().toString(
                     'yyyy-MM-dd'
                 )
             )
 
-            if self.parent.get_config('imageSource') == 'BING':
+            if self.parent.get_config('imageSource') == 'ESRI':
                 if not self.date_is_valid(
-                        image_bind_start_date
-                ) and not self.date_is_valid(image_bind_end_date):
+                        image_esri_start_date
+                ) and not self.date_is_valid(image_esri_end_date):
                     image_date = None
                     self.parent.iface.messageBar().pushMessage(
                         '',
-                        'The image date of Bing valid is required!',
+                        'The image date of Esri valid is required!',
                         level=Qgis.Critical,
                         duration=5,
                     )
@@ -335,11 +339,11 @@ class InspectionController:
             for feature in all_features:
                 feature_id = feature.id()
 
-                if image_source == 'BING':
+                if image_source == 'ESRI':
                     attributes = {
-                        bing_class_idx: self.parent.selectedClass,
-                        bing_image_start_date_idx: image_bind_start_date,
-                        bing_image_end_date_idx: image_bind_end_date
+                        esri_class_idx: self.parent.selectedClass,
+                        esri_image_start_date_idx: image_esri_start_date,
+                        esri_image_end_date_idx: image_esri_end_date
                     }
                 else:
                     attributes = {
@@ -349,7 +353,7 @@ class InspectionController:
                     }
 
                 attribute_map[feature_id] = attributes
-
+                print('attributes: ', attributes)
             provider.changeAttributeValues(attribute_map)
 
             self.set_feature_color()
@@ -383,35 +387,35 @@ class InspectionController:
             'google_image_end_date'
         )
 
-        bing_class_idx = layer.fields().indexOf('bing_class')
-        bing_image_start_date_idx = layer.fields().indexOf(
-            'bing_image_start_date'
+        esri_class_idx = layer.fields().indexOf('esri_class')
+        esri_image_start_date_idx = layer.fields().indexOf(
+            'esri_image_start_date'
         )
-        bing_image_end_date_idx = layer.fields().indexOf('bing_image_end_date')
+        esri_image_end_date_idx = layer.fields().indexOf('esri_image_end_date')
 
         image_date = self.parent.dock_widget.imageDate.date().toString(
             'yyyy-MM-dd'
         )
 
-        image_bind_start_date = (
-            self.parent.dock_widget.bingStartDate.date().toString('yyyy-MM-dd')
+        image_esri_start_date = (
+            self.parent.dock_widget.esriStartDate.date().toString('yyyy-MM-dd')
         )
-        image_bind_end_date = (
-            self.parent.dock_widget.bingEndDate.date().toString('yyyy-MM-dd')
+        image_esri_end_date = (
+            self.parent.dock_widget.esriEndDate.date().toString('yyyy-MM-dd')
         )
 
         # Determine the image source outside the loop
-        is_bing = self.parent.get_config('imageSource') == 'BING'
+        is_esri = self.parent.get_config('imageSource') == 'ESRI'
 
         # Create a dictionary for batch updates
         attribute_map = {}
 
         for feature in all_features:
-            if is_bing:
+            if is_esri:
                 attributes = {
-                    bing_class_idx: self.parent.selectedClass,
-                    bing_image_start_date_idx: image_bind_start_date,
-                    bing_image_end_date_idx: image_bind_end_date
+                    esri_class_idx: self.parent.selectedClass,
+                    esri_image_start_date_idx: image_esri_start_date,
+                    esri_image_end_date_idx: image_esri_end_date
                 }
             else:
                 attributes = {
@@ -425,17 +429,17 @@ class InspectionController:
         layer.dataProvider().changeAttributeValues(attribute_map)
         #
         # for feature in all_features:
-        #     if self.parent.get_config('imageSource') == 'BING':
+        #     if self.parent.get_config('imageSource') == 'ESRI':
         #         layer.changeAttributeValue(
-        #             feature.id(), bing_class_idx, self.parent.selectedClass
+        #             feature.id(), esri_class_idx, self.parent.selectedClass
         #         )
         #         layer.changeAttributeValue(
         #             feature.id(),
-        #             bing_image_start_date_idx,
-        #             image_bind_start_date,
+        #             esri_image_start_date_idx,
+        #             image_esri_start_date,
         #         )
         #         layer.changeAttributeValue(
-        #             feature.id(), bing_image_end_date_idx, image_bind_end_date
+        #             feature.id(), esri_image_end_date_idx, image_esri_end_date
         #         )
         #     else:
         #
@@ -463,7 +467,7 @@ class InspectionController:
         return QPixmap(img_path)
 
     # @profile
-    def load_thumbnail_bing(self, url):
+    def load_thumbnail_esri(self, url):
         try:
             if url is None:
                 pixmap = self.get_not_found_img()
@@ -476,83 +480,85 @@ class InspectionController:
 
         self.get_widget_object('thum').setPixmap(pixmap)
 
-    # @profile
-    def load_tile_metadata_from_bing(self, geom):
-        source_crs = QgsCoordinateReferenceSystem(3857)
+    def _get_centroid_latlon(self, geom):
+        source_crs = self.parent.tiles_layer.crs()
         dest_crs = QgsCoordinateReferenceSystem(4326)
+        tr = QgsCoordinateTransform(source_crs, dest_crs, QgsProject.instance())
+        wgs84_point = tr.transform(geom.centroid().asPoint())
+        return wgs84_point.y(), wgs84_point.x()
 
-        tr = QgsCoordinateTransform(
-            source_crs, dest_crs, QgsProject.instance()
+    def _fetch_esri_imagery_metadata(self, lat, lon):
+        """Fetch imagery metadata from Esri World Imagery MapServer.
+
+        Uses the public ArcGIS REST API (no API key required).
+        Returns dict with keys: date, sensor, source (or None values).
+        """
+        url = (
+            'https://services.arcgisonline.com/arcgis/rest/services/'
+            'World_Imagery/MapServer/0/query'
+            f'?where=1%3D1'
+            f'&geometry={lon},{lat}'
+            f'&geometryType=esriGeometryPoint'
+            f'&spatialRel=esriSpatialRelIntersects'
+            f'&inSR=4326'
+            f'&outFields=SRC_DATE,SRC_DESC,NICE_NAME,SRC_RES'
+            f'&returnGeometry=false'
+            f'&f=json'
         )
-        point = tr.transform(geom.centroid().asPoint()).toString().split(',')
-
-        lat = point[1].replace(' ', '')
-        lon = point[0].replace(' ', '')
-
-        if "bing_maps_key" in self.parent.campaigns_config:
-            bing_maps_key = self.parent.campaigns_config['bing_maps_key']
-        else:
-            if "origin" in self.parent.campaigns_config:
-                if self.parent.campaigns_config['origin'] == 'LAPIG':
-                    bing_maps_key = 'AlXOiUXLu-4TbJpayRnVBURzY6RNXLLlK-STT2JIzBrkbXe0-53aSfaQXfDA7rt6'
-                else:
-                    bing_maps_key = 'UomkpKbLwbM1R9IfxTll~NFnQkcDTeQaWvbc96cVmQw~AjK0oEujZwZrnsBdSmg5cM47Lu25vSf1Hhuqxvc_IzTvo-dC4AzGh8wVXCFLgGO4'
-            else:
-                bing_maps_key = 'UomkpKbLwbM1R9IfxTll~NFnQkcDTeQaWvbc96cVmQw~AjK0oEujZwZrnsBdSmg5cM47Lu25vSf1Hhuqxvc_IzTvo-dC4AzGh8wVXCFLgGO4'
-
+        result = {'date': None, 'sensor': None, 'source': None, 'resolution': None}
         try:
-            url = requote_uri(
-                f'https://dev.virtualearth.net/REST/V1/Imagery/Metadata/Aerial/{lat},{lon}?centerPoint={lat},{lon}&zl'
-                f'=15&o=xml&key={bing_maps_key}'
-            )
-            data = urllib.request.urlopen(url).read()
-
-            root = ET.fromstring(data)
-
-            # Define the namespace mapping
-            ns = {'ns0': 'http://schemas.microsoft.com/search/local/ws/rest/v1'}
-
-            # Navigate the XML tree using the namespace prefix
-            imagery_metadata = root.find("ns0:ResourceSets/ns0:ResourceSet/ns0:Resources/ns0:ImageryMetadata",
-                                         namespaces=ns)
-
-            if imagery_metadata is not None:
-                start_date = imagery_metadata.findtext("ns0:VintageStart", namespaces=ns)
-                end_date = imagery_metadata.findtext("ns0:VintageEnd", namespaces=ns)
-                image_url = imagery_metadata.findtext("ns0:ImageUrl", namespaces=ns)
-            else:
-                start_date, end_date, image_url = None, None, None
-
-            if start_date is None or end_date is None:
-                start_date = '2000-01-01'
-                end_date = '2000-01-01'
-                self.parent.iface.messageBar().pushMessage(
-                    'BING',
-                    f'No dates were found for the BING image of the tile under analysis.',
-                    level=Qgis.Critical,
-                    duration=5,
-                )
+            response = urllib.request.urlopen(url, timeout=15)
+            data = json.loads(response.read().decode('utf-8'))
+            features = data.get('features', [])
+            if features:
+                attrs = features[0].get('attributes', {})
+                src_date = attrs.get('SRC_DATE')
+                if src_date:
+                    dt = datetime.datetime.strptime(str(src_date), '%Y%m%d')
+                    result['date'] = dt.strftime('%Y-%m-%d')
+                result['sensor'] = attrs.get('SRC_DESC') or None
+                result['source'] = attrs.get('NICE_NAME') or None
+                src_res = attrs.get('SRC_RES')
+                if src_res is not None:
+                    result['resolution'] = str(src_res)
         except Exception as e:
+            print(f'Esri imagery metadata lookup failed: {e}')
+        return result
+
+    def load_tile_metadata_from_esri(self, geom):
+        """Fetch imagery capture date and source for the tile centroid.
+
+        Uses the Esri World Imagery public API (free, no key required).
+        Stores metadata (sensor, source, resolution) on the controller
+        for later inclusion in the exported GPKG.
+        """
+        lat, lon = self._get_centroid_latlon(geom)
+
+        meta = self._fetch_esri_imagery_metadata(lat, lon)
+
+        self.esri_imagery_sensor = meta['sensor']
+        self.esri_imagery_source = meta['source']
+        self.esri_imagery_resolution = meta['resolution']
+
+        start_date = meta['date'] or '2000-01-01'
+        end_date = start_date
+
+        if start_date == '2000-01-01':
             self.parent.iface.messageBar().pushMessage(
-                'BING',
-                f'No dates were found for the BING image of the tile under analysis.',
-                level=Qgis.Critical,
+                'IMAGE DATE',
+                'Could not retrieve imagery date from Esri World Imagery.',
+                level=Qgis.Warning,
                 duration=5,
             )
-            start_date = '2000-01-01'
-            end_date = '2000-01-01'
-            image_url = None
-            QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
-            print(e)
 
-        self.set_dates_bing(start_date, end_date)
+        self.set_dates_esri(start_date, end_date)
 
-    def set_dates_bing(self, start_date, end_date):
+    def set_dates_esri(self, start_date, end_date):
         if isinstance(start_date, QVariant):
             start_date = '2000-01-01'
             self.parent.iface.messageBar().pushMessage(
                 'REVIEW TILE',
-                'The start date of Bing image was not found.',
+                'The start date of Esri image was not found.',
                 level=Qgis.Critical,
                 duration=4,
             )
@@ -561,7 +567,7 @@ class InspectionController:
             end_date = '2000-01-01'
             self.parent.iface.messageBar().pushMessage(
                 'REVIEW TILE',
-                'The end date of Bing image was not found.',
+                'The end date of Esri image was not found.',
                 level=Qgis.Critical,
                 duration=4,
             )
@@ -574,10 +580,10 @@ class InspectionController:
         qdate_start = QtCore.QDateTime(date_start.year, date_start.month, date_start.day, date_start.hour, date_start.minute, date_start.second)
         qdate_end = QtCore.QDateTime(date_start.year, date_start.month, date_start.day, date_start.hour, date_start.minute, date_start.second)
 
-        self.parent.dock_widget.bingStartDate.setDateTime(qdate_start)
-        self.parent.dock_widget.bingEndDate.setDateTime(qdate_end)
+        self.parent.dock_widget.esriStartDate.setDateTime(qdate_start)
+        self.parent.dock_widget.esriEndDate.setDateTime(qdate_end)
 
-        self.parent.dock_widget.bingPeriod.setText(str(period.days))
+        self.parent.dock_widget.esriPeriod.setText(str(period.days))
 
     def set_date_google(self, date):
         if isinstance(date, QVariant):
@@ -628,9 +634,13 @@ class InspectionController:
         geom = tiles_features[0].geometry()
         self.tile_geom = geom
 
+        # Fetch Esri imagery metadata (date, sensor, source, resolution) early
+        # so it's available when the grid fields are populated below
+        self.load_tile_metadata_from_esri(geom)
+
         self.parent.update_progress(63)
-        active_layer = self.parent.layer_bing if self.parent.get_config(
-            'imageSource') == 'BING' else self.parent.layer_google
+        active_layer = self.parent.layer_esri if self.parent.get_config(
+            'imageSource') == 'ESRI' else self.parent.layer_google
         QgsProject.instance().layerTreeRoot().findLayer(active_layer.id()).setItemVisibilityChecked(True)
         self.parent.update_progress(66)
 
@@ -642,11 +652,25 @@ class InspectionController:
         if selected_mode == 'INSPECT':
 
             cell_size = self.parent.campaigns_config.get('cell_size', 10)
-            extent = geom.boundingBox()
+            grid_crs = self.parent.get_config('gridCrs') or 'EPSG:3857'
+
+            tiles_crs = self.parent.tiles_layer.crs()
+            target_crs = QgsCoordinateReferenceSystem(grid_crs)
+
+            if tiles_crs != target_crs:
+                transform = QgsCoordinateTransform(
+                    tiles_crs, target_crs, QgsProject.instance()
+                )
+                reprojected_geom = QgsGeometry(geom)
+                reprojected_geom.transform(transform)
+                extent = reprojected_geom.boundingBox()
+            else:
+                extent = geom.boundingBox()
+
             params = {
                 'TYPE': 2, 'EXTENT': extent, 'HSPACING': cell_size,
                 'VSPACING': cell_size, 'HOVERLAY': 0, 'VOVERLAY': 0,
-                'CRS': 'EPSG:3857', 'OUTPUT': grid_output
+                'CRS': grid_crs, 'OUTPUT': grid_output
             }
             self.parent.update_progress(68)
             out = processing.run('native:creategrid', params)
@@ -657,7 +681,7 @@ class InspectionController:
         else:
             grid_path = tile[2]
             layer_name = f"{tile[1].split('.')[0]}_review"
-            self.set_dates_bing(tile[3], tile[4])
+            self.set_dates_esri(tile[3], tile[4])
             self.set_date_google(tile[5])
             self.parent.load_classes()
 
@@ -668,17 +692,41 @@ class InspectionController:
             grid.startEditing()
 
             data_provider.addAttributes([
-                QgsField('bing_class', QVariant.String),
-                QgsField('bing_image_start_date', QVariant.String),
-                QgsField('bing_image_end_date', QVariant.String),
+                QgsField('esri_class', QVariant.String),
+                QgsField('esri_image_start_date', QVariant.String),
+                QgsField('esri_image_end_date', QVariant.String),
                 QgsField('google_class', QVariant.String),
                 QgsField('google_image_start_date', QVariant.String),
                 QgsField('google_image_end_date', QVariant.String),
                 QgsField('missing_image_date', QVariant.Bool),
-                QgsField('same_image_bing_google', QVariant.Bool)
+                QgsField('same_image_esri_google', QVariant.Bool),
+                QgsField('esri_image_sensor', QVariant.String),
+                QgsField('esri_image_source', QVariant.String),
+                QgsField('esri_image_resolution', QVariant.String)
             ])
 
             grid.commitChanges()
+
+            # Populate Esri imagery metadata for all features in the grid
+            if self.esri_imagery_sensor or self.esri_imagery_source or self.esri_imagery_resolution:
+                grid.startEditing()
+                sensor_idx = grid.fields().indexOf('esri_image_sensor')
+                source_idx = grid.fields().indexOf('esri_image_source')
+                resolution_idx = grid.fields().indexOf('esri_image_resolution')
+                attr_map = {}
+                for feat in grid.getFeatures():
+                    attrs = {}
+                    if self.esri_imagery_sensor:
+                        attrs[sensor_idx] = self.esri_imagery_sensor
+                    if self.esri_imagery_source:
+                        attrs[source_idx] = self.esri_imagery_source
+                    if self.esri_imagery_resolution:
+                        attrs[resolution_idx] = self.esri_imagery_resolution
+                    if attrs:
+                        attr_map[feat.id()] = attrs
+                if attr_map:
+                    grid.dataProvider().changeAttributeValues(attr_map)
+                grid.commitChanges()
 
             self.parent.update_progress(80)
             self.parent.current_pixels_layer = grid
@@ -809,7 +857,7 @@ class InspectionController:
             self.parent.dock_widget.btnLoadClasses.setVisible(False)
             self.get_widget_object('btnClearSelection').setVisible(False)
             self.clear_list(self.get_widget_object('classes'))
-            self.parent.dock_widget.importBingClassification.setVisible(False)
+            self.parent.dock_widget.importEsriClassification.setVisible(False)
             self.parent.dock_widget.imageDate.setDateTime(
                 datetime.datetime.strptime('2000-01-01', '%Y-%m-%d')
             )
@@ -826,7 +874,7 @@ class InspectionController:
 
     def layer_has_tiles_without_date_and_class(self, layer):
         request = QgsFeatureRequest().setFilterExpression(
-            '"google_class" is NULL AND "google_image_start_date" is NULL AND "google_image_start_date" is NULL AND "bing_class" is NULL AND "bing_image_start_date" is NULL AND "bing_image_end_date" is NULL'
+            '"google_class" is NULL AND "google_image_start_date" is NULL AND "google_image_start_date" is NULL AND "esri_class" is NULL AND "esri_image_start_date" is NULL AND "esri_image_end_date" is NULL'
         )
         result_features = layer.getFeatures(request)
         total = len(list(result_features))
@@ -899,8 +947,8 @@ class InspectionController:
             QApplication.instance().setOverrideCursor(Qt.BusyCursor)
             layer.startEditing()
 
-            same_image_bing_google_idx = layer.fields().indexOf('same_image_bing_google')
-            changes = {feature.id(): {same_image_bing_google_idx: value} for feature in layer.getFeatures()}
+            same_image_esri_google_idx = layer.fields().indexOf('same_image_esri_google')
+            changes = {feature.id(): {same_image_esri_google_idx: value} for feature in layer.getFeatures()}
 
             # Apply the changes using the data provider
             layer.dataProvider().changeAttributeValues(changes)
@@ -912,7 +960,7 @@ class InspectionController:
             QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
     # @profile
-    def import_classes_bing(self):
+    def import_classes_esri(self):
 
         layer = self.parent.current_pixels_layer
         QApplication.instance().setOverrideCursor(Qt.BusyCursor)
@@ -941,7 +989,7 @@ class InspectionController:
 
         for feature in all_features:
             attributes = {
-                google_class_idx: feature['bing_class'],
+                google_class_idx: feature['esri_class'],
                 google_image_start_date_idx: image_date,
                 google_image_end_date_idx: image_date
             }
@@ -1099,7 +1147,7 @@ class InspectionController:
             self.parent.layer_google.id()
         ).setItemVisibilityChecked(True)
         QgsProject.instance().layerTreeRoot().findLayer(
-            self.parent.layer_bing.id()
+            self.parent.layer_esri.id()
         ).setItemVisibilityChecked(False)
         self.parent.dock_widget.tabWidget.setCurrentIndex(2)
         self.parent.dock_widget.tabWidget.setTabEnabled(2, True)
@@ -1112,10 +1160,7 @@ class InspectionController:
             self.parent.iface.mapCanvas().setSelectionColor(
                 QColor(255, 255, 255, 0)
             )
-            self.parent.set_config(key='imageSource', value='BING')
-
-            if selected_mode == 'INSPECT':
-                self.load_tile_metadata_from_bing(self.tile_geom)
+            self.parent.set_config(key='imageSource', value='ESRI')
 
             self.set_feature_color()
             self.parent.load_classes()
@@ -1123,9 +1168,9 @@ class InspectionController:
                 self.parent.layer_google.id()
             ).setItemVisibilityChecked(False)
             QgsProject.instance().layerTreeRoot().findLayer(
-                self.parent.layer_bing.id()
+                self.parent.layer_esri.id()
             ).setItemVisibilityChecked(True)
-            self.parent.dock_widget.btnFinishBing.setVisible(True)
+            self.parent.dock_widget.btnFinishEsri.setVisible(True)
             self.parent.dock_widget.tabWidget.setCurrentIndex(1)
             self.parent.dock_widget.tabWidget.setTabEnabled(1, True)
 
@@ -1134,7 +1179,7 @@ class InspectionController:
             self.parent.iface.mapCanvas().setSelectionColor(
                 QColor(255, 255, 255, 0)
             )
-            # self.load_thumbnail_bing(self.bing_thumb_url)
+            # self.load_thumbnail_esri(self.esri_thumb_url)
             self.set_feature_color()
             if selected_mode == 'REVIEW':
                 self.set_date_google(self.tile[5])
@@ -1145,7 +1190,7 @@ class InspectionController:
                 self.parent.layer_google.id()
             ).setItemVisibilityChecked(True)
             QgsProject.instance().layerTreeRoot().findLayer(
-                self.parent.layer_bing.id()
+                self.parent.layer_esri.id()
             ).setItemVisibilityChecked(False)
             self.parent.dock_widget.tabWidget.setCurrentIndex(2)
             self.parent.dock_widget.tabWidget.setTabEnabled(2, True)

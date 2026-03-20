@@ -63,7 +63,7 @@ class ClipboardPointer(QgsMapTool):
         point = self.canvas.getCoordinateTransform().toMapCoordinates(
             e.pos().x(), e.pos().y()
         )
-        sourceCrs = QgsCoordinateReferenceSystem(3857)
+        sourceCrs = QgsProject.instance().crs()
         destCrs = QgsCoordinateReferenceSystem(4326)
         tr = QgsCoordinateTransform(sourceCrs, destCrs, QgsProject.instance())
         clipboardPoint = tr.transform(point)

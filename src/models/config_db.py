@@ -41,9 +41,26 @@ def init_db():
                 mode TEXT,
                 loadConfigFrom TEXT,
                 configURL TEXT,
-                inspectionConfig TEXT
+                inspectionConfig TEXT,
+                gridCrs TEXT DEFAULT 'EPSG:3857',
+                esriMaxZoom INTEGER DEFAULT 19
             );
         ''')
+
+        # Migration: add gridCrs column if missing (existing databases)
+        c.execute("PRAGMA table_info(config)")
+        columns = [row[1] for row in c.fetchall()]
+        if 'gridCrs' not in columns:
+            c.execute("ALTER TABLE config ADD COLUMN gridCrs TEXT DEFAULT 'EPSG:3857'")
+            conn.commit()
+
+        if 'esriMaxZoom' not in columns:
+            c.execute("ALTER TABLE config ADD COLUMN esriMaxZoom INTEGER DEFAULT 19")
+            conn.commit()
+
+        # Migration: rename imageSource 'BING' to 'ESRI' (Bing Maps API retired June 2025)
+        c.execute("UPDATE config SET imageSource = 'ESRI' WHERE imageSource = 'BING'")
+        conn.commit()
 
         conn.commit()
 
