@@ -139,6 +139,11 @@ deploy: compile transcompile
 		mkdir -p $(PLUGINDIR)/help; \
 		cp -rf $(HELP)/* $(PLUGINDIR)/help/; \
 	fi
+	@# Remove runtime database — init_db() creates it on first run
+	rm -f $(PLUGINDIR)/datasource/database.db
+	@# Clean stale bytecode from deployed plugin
+	find $(PLUGINDIR) -iname "*.pyc" -delete
+	find $(PLUGINDIR) -iname "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 	@echo "----------------------------------------------"
 	@echo "Plugin deployed successfully."
 	@echo "----------------------------------------------"

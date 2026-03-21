@@ -93,3 +93,4 @@ def show_monthly_composites(geometry, year=2022):
 
     for layer in monthly_composites:
         QgsProject.instance().addMapLayer(layer)
+    monthly_composites.clear()
