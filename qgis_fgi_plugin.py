@@ -72,6 +72,8 @@ from .sources import connections
 from .src.inspections import InspectionController
 from .src.models.config_db import init_db, reset_config, set_config, get_config
 from .src.ui.date_time_edit import NoScrollOrArrowKeyFilter
+from .src.tickets.ticket_api import TicketApiClient
+from .src.tickets.ticket_dialog import TicketDialog
 
 
 
@@ -142,6 +144,7 @@ class QGISFGIPlugin(QObject):
             self.reload_button = None
             self.progress_message_bar = None
             self.progress_bar = None
+            self.ticket_api_client = TicketApiClient()
 
         except Exception as e:
             print("Error during initialization:", str(e))
@@ -251,6 +254,14 @@ class QGISFGIPlugin(QObject):
         self.reload_button.clicked.connect(self.reload_plugin)
         self.toolbar.addWidget(self.reload_button)
 
+        ticket_icon_path = os.path.join(os.path.dirname(__file__), 'img', 'ticket.svg')
+        self.add_action(
+            ticket_icon_path,
+            text=self.tr('Registrar Ticket'),
+            callback=self.open_ticket_dialog,
+            parent=self.iface.mainWindow(),
+        )
+
     # --------------------------------------------------------------------------
 
     def onClosePlugin(self):
@@ -276,6 +287,19 @@ class QGISFGIPlugin(QObject):
         QgsProject.instance().removeMapLayers(self.list_layers())
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
         gc.collect()
+
+    def open_ticket_dialog(self):
+        """Abre o diálogo de registro de tickets."""
+        interpreter_name = ''
+        if hasattr(self, 'dock_widget') and self.dock_widget is not None:
+            interpreter_name = self.dock_widget.interpreterName.text().strip()
+        dialog = TicketDialog(
+            self.iface,
+            self.ticket_api_client,
+            interpreter_name=interpreter_name,
+            parent=self.iface.mainWindow()
+        )
+        dialog.exec_()
 
     def remove_path(self, path):
         def safe_remove(_path, retries=8, delay=1):
@@ -805,46 +829,63 @@ class QGISFGIPlugin(QObject):
     def continue_inspecting(self):
         self.start_processing()
 
-        self.get_dir_path(from_config=True)
+        try:
+            self.get_dir_path(from_config=True)
 
-        if not self.open_tiles_file(from_config=True):
-            return
+            if not self.open_tiles_file(from_config=True):
+                self.finish_progress()
+                self.clear_config()
+                self.reset_content()
+                return
 
-        self.load_config_from = self.get_config('loadConfigFrom')
-        self.load_campaign_conf()
+            self.load_config_from = self.get_config('loadConfigFrom') or 'local'
+            self.load_campaign_conf()
 
-        self.show_imports_buttons = self.get_config('showImportsButtons')
-        self.dock_widget.interpreterName.setText(
-            self.get_config('interpreterName').upper()
-        )
+            interpreter_name = self.get_config('interpreterName') or ''
+            self.dock_widget.interpreterName.setText(interpreter_name.upper())
 
-        if self.show_imports_buttons:
-            self.dock_widget.btnShowNo.setChecked(False)
-            self.dock_widget.btnShowYes.setChecked(True)
-        else:
-            self.dock_widget.btnShowNo.setChecked(True)
-            self.dock_widget.btnShowYes.setChecked(False)
-        self.start_processing()
-        self.update_progress(10)
-        self.load_type_inspections()
+            self.show_imports_buttons = self.get_config('showImportsButtons')
+            if self.show_imports_buttons:
+                self.dock_widget.btnShowNo.setChecked(False)
+                self.dock_widget.btnShowYes.setChecked(True)
+            else:
+                self.dock_widget.btnShowNo.setChecked(True)
+                self.dock_widget.btnShowYes.setChecked(False)
 
-        self.dock_widget.tabWidget.setTabEnabled(1, True)
-        self.dock_widget.tabWidget.setTabEnabled(2, True)
+            self.start_processing()
+            self.update_progress(10)
+            self.load_type_inspections()
 
-        self.set_config(key='imageSource', value='ESRI')
-        self.update_progress(30)
-        self.inspection_controller.on_change_tab(1)
-        self.show_config_url(False)
-        self.show_local_config(False)
-        self.enable_config_buttons(False)
-        self.dock_widget.interpreterName.setEnabled(False)
-        self.dock_widget.btnFile.setEnabled(False)
-        self.dock_widget.btnWorkingDirectory.setEnabled(False)
-        self.dock_widget.btnInitInspections.setVisible(False)
-        self.update_progress(60)
-        self.plugin_actions()
-        self.update_progress(100)
-        self.finish_progress()
+            self.dock_widget.tabWidget.setTabEnabled(1, True)
+            self.dock_widget.tabWidget.setTabEnabled(2, True)
+
+            self.set_config(key='imageSource', value='ESRI')
+            self.update_progress(30)
+            self.inspection_controller.on_change_tab(1)
+            self.show_config_url(False)
+            self.show_local_config(False)
+            self.enable_config_buttons(False)
+            self.dock_widget.interpreterName.setEnabled(False)
+            self.dock_widget.btnFile.setEnabled(False)
+            self.dock_widget.btnWorkingDirectory.setEnabled(False)
+            self.dock_widget.btnInitInspections.setVisible(False)
+            self.update_progress(60)
+            self.plugin_actions()
+            self.update_progress(100)
+            self.finish_progress()
+
+        except Exception as e:
+            print(f"Error resuming previous inspection: {e}")
+            self.finish_progress()
+            self.clear_config()
+            self.reset_content()
+            self.reset_screen()
+            self.iface.messageBar().pushMessage(
+                'FGI',
+                'Could not resume previous inspection. Starting fresh.',
+                level=Qgis.Warning,
+                duration=5,
+            )
 
     def zoom_to_tile_layer(self):
         self.iface.setActiveLayer(self.current_pixels_layer)
@@ -910,7 +951,7 @@ class QGISFGIPlugin(QObject):
         self.dock_widget.lblSearch.setVisible(False)
         self.dock_widget.spinSearch.setVisible(False)
         self.dock_widget.btnSearch.setVisible(False)
-        self.dock_widget.btnNewInspection.setVisible(False)
+        self.dock_widget.btnNewInspection.setVisible(True)
         self.dock_widget.zoom.setVisible(False)
         self.dock_widget.btnSkip.setVisible(False)
         self.show_config_url(False)
@@ -926,7 +967,7 @@ class QGISFGIPlugin(QObject):
         self.dock_widget.btnSkip.setToolTip("Skip the current tile.")
 
     def remove_datasource(self):
-        for extension in ['.gpkg-shm', '.gpkg-wal', 'gpkg']:
+        for extension in ['.gpkg-shm', '.gpkg-wal', 'gpkg', '.db-shm', '.db-wal']:
             self.remove_files_with_extension('/datasource', extension)
 
     def reset_plugin_instance(self, reset=True):
@@ -957,16 +998,54 @@ class QGISFGIPlugin(QObject):
         retval = msg.exec_()
         # 65536 -> No | 16384 -> Yes
         if retval == 16384:
-            self.reset_content()
-            self.reset_screen()
-            self.reset_plugin_instance()
-            self.open_google_satellite()
-            self.open_esri_satellite()
-            self.enable_config_buttons(enable=True)
-            self.show_local_config(show=True)
-            self.iface.actionZoomToSelected().trigger()
-            self.current_tile_index = 0
-            self.current_pixels_layer = None
+            self.full_reset()
+
+    def full_reset(self):
+        """Reset complete: in-memory state, database, UI and QGIS layers."""
+        # Disconnect signals before any state change
+        self.reset_content()
+
+        # Reset UI controls
+        self.reset_screen()
+
+        # Clear QGIS project layers and plugin instance state
+        self.reset_plugin_instance()
+
+        # Clear all in-memory state
+        self.tiles = None
+        self.tiles_layer = None
+        self.current_tile_index = 0
+        self.current_pixels_layer = None
+        self.campaigns_config = None
+        self.selected_class_esri = None
+        self.selected_class_google = None
+        self.layer_esri = None
+        self.layer_google = None
+        self.layers_plugin = []
+        self.show_imports_buttons = None
+        self.load_config_from = 'local'
+
+        # Re-add base satellite layers
+        self.open_google_satellite()
+        self.open_esri_satellite()
+
+        # Restore initial UI state
+        self.enable_config_buttons(enable=True)
+        self.show_local_config(show=True)
+
+        # Reload default inspection config into the local config editor
+        default_config = self.get_config('inspectionConfig')
+        if default_config:
+            self.dock_widget.localConfig.setPlainText(
+                json.dumps(default_config, indent=4)
+            )
+
+        self.dock_widget.comboMode.setEnabled(True)
+        self.dock_widget.btnConfigLocal.setChecked(True)
+        self.dock_widget.btnShowNo.setChecked(True)
+
+        self.iface.actionPan().trigger()
+        QApplication.instance().setOverrideCursor(Qt.ArrowCursor)
 
     def load_campaign_conf(self):
         if self.load_config_from == 'local':
@@ -1023,30 +1102,30 @@ class QGISFGIPlugin(QObject):
             self.progress_message_bar = None
 
     def reload_plugin(self):
-        # Assuming the name of your plugin is 'my_plugin_name'
-        name = 'qgis-fgi-plugin'
+        import sys
 
-        # Find the plugin
+        name = 'global_inspection'
+
         plugin = utils.plugins.get(name)
         if plugin is None:
             raise ValueError(f"Plugin {name} not found.")
 
-        # Unload the plugin
+        # Cleanup before unload
+        self.onClosePlugin()
+
         utils.unloadPlugin(name)
 
-        # Load the plugin again
+        # Remove cached modules so Python reimports fresh code
+        prefix = 'global_inspection'
+        stale_modules = [key for key in sys.modules if key == prefix or key.startswith(prefix + '.')]
+        for mod in stale_modules:
+            del sys.modules[mod]
+
         utils.loadPlugin(name)
-        self.onClosePlugin()
         utils.startPlugin(name)
 
     def reset_configuration(self):
-        self.reset_content()
-        self.reset_screen()
-        self.reset_plugin_instance()
-        self.open_google_satellite()
-        self.open_esri_satellite()
-        self.enable_config_buttons(enable=True)
-        self.show_local_config(show=True)
+        self.full_reset()
 
     def setup_crs_widget(self):
         config_tab = self.dock_widget.tabWidget.widget(0)
@@ -1198,6 +1277,17 @@ class QGISFGIPlugin(QObject):
             scroll_tab.setWidget(self.dock_widget.tabWidget)
 
             self.dock_widget.gridMain.addWidget(scroll_tab)
+
+            # Botão de registro de ticket no rodapé do dock widget
+            ticket_icon = QIcon(os.path.join(os.path.dirname(__file__), 'img', 'ticket.svg'))
+            self.btn_ticket = QPushButton(ticket_icon, '  Registrar Ticket')
+            self.btn_ticket.setCursor(Qt.PointingHandCursor)
+            self.btn_ticket.setToolTip('Reportar problema ou sugestão')
+            self.btn_ticket.setStyleSheet(
+                'QPushButton { padding: 6px 12px; margin-top: 4px; }'
+            )
+            self.btn_ticket.clicked.connect(self.open_ticket_dialog)
+            self.dock_widget.verticalLayout.addWidget(self.btn_ticket)
 
             # show the dock_widget
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock_widget)
