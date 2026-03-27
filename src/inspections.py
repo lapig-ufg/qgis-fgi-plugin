@@ -50,6 +50,7 @@ class InspectionController:
         self.esri_imagery_sensor = None
         self.esri_imagery_source = None
         self.esri_imagery_resolution = None
+        self._esri_metadata_cache = {}
         self.parent.dock_widget.btnNext.clicked.connect(self.next_tile)
         self.parent.dock_widget.btnSearch.clicked.connect(self.search_tile)
         self.parent.dock_widget.btnPointDate.clicked.connect(self.get_point)
@@ -525,16 +526,22 @@ class InspectionController:
             print(f'Esri imagery metadata lookup failed: {e}')
         return result
 
-    def load_tile_metadata_from_esri(self, geom):
+    def load_tile_metadata_from_esri(self, geom, tile_fid=None):
         """Fetch imagery capture date and source for the tile centroid.
 
         Uses the Esri World Imagery public API (free, no key required).
         Stores metadata (sensor, source, resolution) on the controller
         for later inclusion in the exported GPKG.
+        Results are cached per tile FID to avoid redundant API calls
+        (e.g. when revisiting a tile via Search).
         """
-        lat, lon = self._get_centroid_latlon(geom)
-
-        meta = self._fetch_esri_imagery_metadata(lat, lon)
+        if tile_fid is not None and tile_fid in self._esri_metadata_cache:
+            meta = self._esri_metadata_cache[tile_fid]
+        else:
+            lat, lon = self._get_centroid_latlon(geom)
+            meta = self._fetch_esri_imagery_metadata(lat, lon)
+            if tile_fid is not None and meta['date']:
+                self._esri_metadata_cache[tile_fid] = meta
 
         self.esri_imagery_sensor = meta['sensor']
         self.esri_imagery_source = meta['source']
@@ -616,13 +623,13 @@ class InspectionController:
         self.interpreterName = self.normalize(name)
 
         grid_output = path.normpath(f'{self.parent.work_dir}/{tile[0]}_grid.gpkg')
-        prev_tile_path = path.normpath(
-            f'{self.parent.work_dir}/{self.parent.tiles[self.parent.current_tile_index - 1][0]}')
 
-        # Removing previous files
+        # Removing previous tile's temporary grid files
         try:
-            remove_path(prev_tile_path, "_grid.gpkg")
-            remove_path(prev_tile_path, "_grid.gpkg-shm")
+            if self.parent.current_tile_index > 0:
+                prev_tile_fid = self.parent.tiles[self.parent.current_tile_index - 1][0]
+                remove_path(self.parent.work_dir, f"{prev_tile_fid}_grid.gpkg")
+                remove_path(self.parent.work_dir, f"{prev_tile_fid}_grid.gpkg-shm")
             remove_path(self.parent.work_dir, f"{tile[0]}_grid.gpkg-wal")
         except Exception:
             pass
@@ -635,8 +642,9 @@ class InspectionController:
         self.tile_geom = geom
 
         # Fetch Esri imagery metadata (date, sensor, source, resolution) early
-        # so it's available when the grid fields are populated below
-        self.load_tile_metadata_from_esri(geom)
+        # so it's available when the grid fields are populated below.
+        # tile_fid enables per-tile caching to avoid redundant API calls.
+        self.load_tile_metadata_from_esri(geom, tile_fid=tile[0])
 
         self.parent.update_progress(63)
         active_layer = self.parent.layer_esri if self.parent.get_config(
@@ -1223,7 +1231,9 @@ class InspectionController:
 
         self.clear_container_classes()
 
-        QgsProject.instance().removeMapLayer(layer.id())
+        if layer is not None:
+            self.parent.remove_layer(layer.id())
+            QgsProject.instance().removeMapLayer(layer.id())
         self.parent.config_tiles()
         self.on_change_tab(1)
         QApplication.instance().setOverrideCursor(Qt.ArrowCursor)

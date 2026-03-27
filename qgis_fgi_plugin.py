@@ -1011,7 +1011,9 @@ class QGISFGIPlugin(QObject):
         # Clear QGIS project layers and plugin instance state
         self.reset_plugin_instance()
 
-        # Clear all in-memory state
+        # Clear all in-memory state (including inspection controller caches)
+        if hasattr(self, 'inspection_controller') and self.inspection_controller:
+            self.inspection_controller._esri_metadata_cache.clear()
         self.tiles = None
         self.tiles_layer = None
         self.current_tile_index = 0
